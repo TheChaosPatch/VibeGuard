@@ -76,7 +76,7 @@ public sealed partial class ConsultationService(IArchetypeIndex index) : IConsul
             RelatedArchetypes: Array.Empty<string>(),
             References: EmptyReferences,
             Redirect: false,
-            Message: $"Archetype '{archetypeId}' was not found in the index.",
+            Message: $"Archetype '{archetypeId}' was not found.",
             Suggested: Array.Empty<string>(),
             NotFound: true);
 
@@ -114,10 +114,10 @@ public sealed partial class ConsultationService(IArchetypeIndex index) : IConsul
             RelatedArchetypes: Array.Empty<string>(),
             References: EmptyReferences,
             Redirect: false,
-            Message: $"Archetype '{archetypeId}' claims to support {wireLanguage} " +
-                     "but no language file was found on disk.",
+            Message: $"Archetype '{archetypeId}' lists {wireLanguage} in applies_to " +
+                     "but no language file exists on disk.",
             Suggested: Array.Empty<string>(),
-            NotFound: false);
+            NotFound: true);
 
     private ConsultResult NormalComposition(
         Archetype archetype,
@@ -128,11 +128,11 @@ public sealed partial class ConsultationService(IArchetypeIndex index) : IConsul
 
         // Merge forward-declared related archetypes with reverse-related ones
         // (archetypes that list this one in their own frontmatter) per spec §3.2.
-        var forwardRelated = archetype.Principles.RelatedArchetypes;
-        var reverseRelated = index.GetReverseRelated(archetype.Id);
-
-        var related = forwardRelated
-            .Union(reverseRelated, StringComparer.Ordinal)
+        // Concat+Distinct+OrderBy gives deterministic ordinal ordering; Union does not.
+        var related = archetype.Principles.RelatedArchetypes
+            .Concat(index.GetReverseRelated(archetype.Id))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(s => s, StringComparer.Ordinal)
             .ToList();
 
         return new ConsultResult(
