@@ -32,6 +32,39 @@ public static class ArchetypeLoader
             LanguageFiles: languageFiles);
     }
 
+    /// <summary>
+    /// Same as <see cref="Load"/>, but also returns the raw (pre-parse)
+    /// line count of every file keyed by filename. Used by the validator
+    /// to enforce the per-file 200-line budget from spec §4.2.
+    /// </summary>
+    public static (Archetype Archetype, FrozenDictionary<string, int> RawLineCounts) LoadWithLineCounts(
+        string expectedArchetypeId,
+        IReadOnlyDictionary<string, string> filesInDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(expectedArchetypeId);
+        ArgumentNullException.ThrowIfNull(filesInDirectory);
+
+        var archetype = Load(expectedArchetypeId, filesInDirectory);
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var (filename, content) in filesInDirectory)
+        {
+            counts[filename] = CountLines(content);
+        }
+        return (archetype, counts.ToFrozenDictionary(StringComparer.Ordinal));
+    }
+
+    private static int CountLines(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return 0;
+        var count = 1;
+        for (var i = 0; i < content.Length; i++)
+        {
+            if (content[i] == '\n') count++;
+        }
+        if (content[^1] == '\n') count--;
+        return count;
+    }
+
     private static ParseResult<PrinciplesFrontmatter> LoadPrinciples(
         string expectedArchetypeId,
         IReadOnlyDictionary<string, string> filesInDirectory)
