@@ -27,6 +27,8 @@ LLMs generate code that works but defaults to the insecure and architecturally p
 
 ## Quick example
 
+The JSON blocks below are illustrative sketches, not a literal schema snapshot — the MVP corpus ships three archetypes (`auth/password-hashing`, `errors/error-handling`, `io/input-validation`), so `auth/session-tokens` is a forward-looking placeholder and the real wire responses carry a few more fields than shown here. For the authoritative shapes, see `src/GuardCode.Mcp/Tools/PrepTool.cs` and `src/GuardCode.Mcp/Tools/ConsultTool.cs`.
+
 ```json
 // prep request
 {
