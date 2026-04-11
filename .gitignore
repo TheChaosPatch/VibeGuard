@@ -1,0 +1,67 @@
+# ---------------------------------------------------------
+# GuardCode — .gitignore
+# .NET 10 / C# 14 solution, plus the usual IDE + OS noise.
+# Kept tight on purpose: we want to see every config drift,
+# not bury it under a 300-line boilerplate ignore file.
+# ---------------------------------------------------------
+
+# .NET build output
+**/bin/
+**/obj/
+**/out/
+**/publish/
+**/TestResults/
+**/coverage/
+*.coverage
+*.coveragexml
+
+# .NET tooling / user state
+*.user
+*.suo
+*.userprefs
+*.cache
+*.DotSettings.user
+*.vspscc
+*.lock.json
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+
+# Visual Studio / MSBuild
+.vs/
+*.sln.docstates
+*.opensdf
+*.sdf
+
+# JetBrains Rider
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Secrets and local config — defensive.
+# GuardCode's own content teaches "never commit secrets";
+# the repo must practice what it preaches.
+appsettings.Local.json
+appsettings.*.Local.json
+local.settings.json
+*.env
+.env
+.env.*
+*.pfx
+*.key
+secrets.json
+
+# Logs
+*.log
+logs/
+
+# OS noise
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
