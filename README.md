@@ -250,7 +250,7 @@ Here is a complete interaction using an archetype that actually ships in the MVP
 
 `consult` response — `content` field (truncated here for brevity — the real payload is the full composed markdown):
 
-```markdown
+````markdown
 # Password Hashing — Principles
 
 ## Architectural placement
@@ -297,7 +297,7 @@ def verify_password(password: str, encoded: str) -> tuple[bool, bool]:
         return False, False
     return True, _hasher.check_needs_rehash(encoded)
 ```
-```
+````
 
 **Step 3 — the LLM writes the code.**
 
