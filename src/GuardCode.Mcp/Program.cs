@@ -4,15 +4,20 @@ using GuardCode.Content.Services;
 using GuardCode.Content.Validation;
 using GuardCode.Mcp;
 using Microsoft.Extensions.Configuration;
+using Serilog;
+using Serilog.Events;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-// Stdio is reserved for the MCP protocol. All logging MUST go to stderr.
+// Stdio is reserved for the MCP protocol. Serilog is the sole logging
+// provider, and every log event is routed to stderr so nothing pollutes
+// the MCP wire format on stdout.
 builder.Logging.ClearProviders();
-builder.Logging.AddConsole(options =>
-{
-    options.LogToStandardErrorThreshold = LogLevel.Trace;
-});
+builder.Services.AddSerilog(lc => lc
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(standardErrorFromLevel: LogEventLevel.Verbose));
 
 // Resolve the archetypes root once at startup. Precedence:
 // 1. Environment variable GUARDCODE_ARCHETYPES_ROOT (absolute or relative to cwd)
