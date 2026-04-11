@@ -91,7 +91,17 @@ public sealed class FileSystemArchetypeRepository : IArchetypeRepository
 
     internal static void EnsureUnderRoot(string rootFullPath, string candidateFullPath)
     {
-        if (!candidateFullPath.StartsWith(rootFullPath, StringComparison.Ordinal))
+        // Path comparison on Windows must be case-insensitive: a drive letter
+        // or directory-casing difference between the stored root and an
+        // enumerated file path would otherwise produce a false rejection.
+        // Linux and macOS remain ordinal because their file systems are
+        // conventionally case-sensitive. Fails-closed either way — no path
+        // that was previously rejected becomes allowed by this change.
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        if (!candidateFullPath.StartsWith(rootFullPath, comparison))
         {
             throw new ArchetypeLoadException(
                 $"refusing to load file outside archetypes root: {candidateFullPath}");
@@ -101,7 +111,14 @@ public sealed class FileSystemArchetypeRepository : IArchetypeRepository
     private string DeriveArchetypeId(string fullDirectory)
     {
         var relative = Path.GetRelativePath(_rootFullPath, fullDirectory);
-        return relative.Replace(Path.DirectorySeparatorChar, '/');
+        // Normalize both separators defensively. On Windows GetRelativePath
+        // returns backslashes today, but covering AltDirectorySeparatorChar
+        // makes the archetype ID construction robust to platform variance.
+        // On platforms where DirectorySeparatorChar == AltDirectorySeparatorChar
+        // the second Replace is a no-op over the already-normalized string.
+        return relative
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
     }
 
     private static string EnsureTrailingSeparator(string path)
