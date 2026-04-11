@@ -11,5 +11,8 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <Version>0.1.0</Version>
+    <Company>GuardCode</Company>
+    <Product>GuardCode MCP Server</Product>
   </PropertyGroup>
 </Project>
