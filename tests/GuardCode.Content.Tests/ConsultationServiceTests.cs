@@ -150,6 +150,71 @@ public class ConsultationServiceTests
     }
 
     [Fact]
+    public void Consult_DeprecatedArchetype_PrependsDeprecationBanner()
+    {
+        // A deprecated archetype with a successor should still serve content
+        // (so existing callers don't hard-fail on upgrade) but the response
+        // must lead with a DEPRECATED banner naming the successor, so LLM
+        // clients can pattern-match on it and steer the user away.
+        var archetype = new Archetype(
+            Id: "auth/legacy-password-hashing",
+            Principles: new PrinciplesFrontmatter
+            {
+                SchemaVersion = 1,
+                Archetype = "auth/legacy-password-hashing",
+                Title = "Legacy Password Hashing",
+                Summary = "s",
+                AppliesTo = ["csharp"],
+                Keywords = ["k"],
+                Status = ArchetypeStatus.Deprecated,
+                SupersededBy = "auth/password-hashing",
+            },
+            PrinciplesBody: "PRINCIPLES_BODY",
+            LanguageFiles: new Dictionary<string, LanguageFile>(StringComparer.Ordinal)
+            {
+                ["csharp"] = new LanguageFile(
+                    new LanguageFrontmatter
+                    {
+                        SchemaVersion = 1,
+                        Archetype = "auth/legacy-password-hashing",
+                        Language = "csharp",
+                        PrinciplesFile = "_principles.md",
+                        Libraries = new LibrariesSection { Preferred = "lib" }
+                    },
+                    "CSHARP_BODY"),
+            });
+        var index = KeywordArchetypeIndex.Build(new[] { archetype });
+        var service = new ConsultationService(index);
+
+        var result = service.Consult("auth/legacy-password-hashing", SupportedLanguage.CSharp);
+
+        result.NotFound.Should().BeFalse();
+        result.Redirect.Should().BeFalse();
+        result.Content.Should().NotBeNull();
+        result.Content!.Should().StartWith("> **DEPRECATED**");
+        result.Content.Should().Contain("auth/password-hashing");
+        // The original composition must still be present after the banner.
+        result.Content.Should().Contain("PRINCIPLES_BODY");
+        result.Content.Should().Contain("CSHARP_BODY");
+    }
+
+    [Fact]
+    public void Consult_StableArchetype_DoesNotPrependDeprecationBanner()
+    {
+        var archetype = Make(
+            "auth/password-hashing",
+            appliesTo: new[] { "csharp" },
+            languageFiles: new[] { ("csharp", "CSHARP_BODY") });
+        var index = KeywordArchetypeIndex.Build(new[] { archetype });
+        var service = new ConsultationService(index);
+
+        var result = service.Consult("auth/password-hashing", SupportedLanguage.CSharp);
+
+        result.Content.Should().NotBeNull();
+        result.Content!.Should().NotContain("DEPRECATED");
+    }
+
+    [Fact]
     public void Consult_AppliesToListsLanguageButFileMissing_ReturnsNotFoundWithDisconnectMessage()
     {
         var archetype = Make(

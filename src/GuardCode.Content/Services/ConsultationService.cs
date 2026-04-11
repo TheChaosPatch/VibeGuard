@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 using System.Text.RegularExpressions;
 using GuardCode.Content.Indexing;
 
@@ -18,6 +19,19 @@ public sealed partial class ConsultationService(IArchetypeIndex index) : IConsul
     /// body in the composed <see cref="ConsultResult.Content"/> field.
     /// </summary>
     public const string BodySeparator = "\n\n---\n\n";
+
+    /// <summary>
+    /// Composite format for the deprecation banner prepended to
+    /// <c>consult</c> content when the archetype is deprecated. Keeps
+    /// the marker stable so LLM clients can pattern-match on it.
+    /// Cached as a <see cref="CompositeFormat"/> per CA1863 — the format
+    /// string is hot on every deprecated consult call.
+    /// </summary>
+    private static readonly CompositeFormat DeprecationBannerFormat =
+        CompositeFormat.Parse(
+            "> **DEPRECATED** — this archetype has been superseded by `{0}`. "
+            + "The content below is preserved for reference; new code should "
+            + "follow `{0}` instead.\n\n");
 
     // Zero-allocation sentinel for error-path IReadOnlyDictionary<string,string> returns.
     private static readonly IReadOnlyDictionary<string, string> EmptyReferences =
@@ -130,7 +144,16 @@ public sealed partial class ConsultationService(IArchetypeIndex index) : IConsul
         string wireLanguage,
         LanguageFile languageFile)
     {
-        var content = archetype.PrinciplesBody + BodySeparator + languageFile.Body;
+        var body = archetype.PrinciplesBody + BodySeparator + languageFile.Body;
+        var content = archetype.Principles.Status == ArchetypeStatus.Deprecated
+            && !string.IsNullOrWhiteSpace(archetype.Principles.SupersededBy)
+                ? string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    DeprecationBannerFormat,
+                    archetype.Principles.SupersededBy) + body
+                : body;
+        // ^ string.Format(IFormatProvider, CompositeFormat, ...) is the
+        // CA1863-preferred overload.
 
         // Merge forward-declared related archetypes with reverse-related ones
         // (archetypes that list this one in their own frontmatter) per spec §3.2.

@@ -4,6 +4,10 @@ archetype: io/input-validation
 title: Input Validation
 summary: Validating untrusted input at every trust boundary.
 applies_to: [csharp, python, c, go]
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-11"
 keywords:
   - validation
   - input

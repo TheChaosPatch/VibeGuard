@@ -4,6 +4,10 @@ archetype: errors/error-handling
 title: Error Handling
 summary: Structuring error paths so failures are observable, actionable, and safe.
 applies_to: [csharp, python, c, go]
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-11"
 keywords:
   - error
   - exception

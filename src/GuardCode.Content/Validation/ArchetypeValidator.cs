@@ -35,6 +35,7 @@ public static class ArchetypeValidator
         ArgumentNullException.ThrowIfNull(archetype);
         ArgumentNullException.ThrowIfNull(rawLineCounts);
 
+        ValidateLifecycle(archetype.Id, archetype.Principles);
         ValidateRequiredSections(archetype.Id, "_principles.md", archetype.PrinciplesBody, RequiredPrinciplesSections);
         ValidateFileLineBudget(archetype.Id, "_principles.md", rawLineCounts);
 
@@ -44,6 +45,56 @@ public static class ArchetypeValidator
             ValidateRequiredSections(archetype.Id, filename, languageFile.Body, RequiredLanguageSections);
             ValidateFileLineBudget(archetype.Id, filename, rawLineCounts);
             ValidateReferenceImplementationBudget(archetype.Id, filename, language, languageFile.Body);
+        }
+    }
+
+    private static void ValidateLifecycle(string archetypeId, PrinciplesFrontmatter principles)
+    {
+        switch (principles.Status)
+        {
+            case ArchetypeStatus.Stable:
+                if (string.IsNullOrWhiteSpace(principles.Author))
+                {
+                    throw new ArchetypeValidationException(
+                        $"archetype '{archetypeId}': status is 'stable' but 'author' is missing");
+                }
+                if (principles.ReviewedBy.Count == 0
+                    || principles.ReviewedBy.All(string.IsNullOrWhiteSpace))
+                {
+                    throw new ArchetypeValidationException(
+                        $"archetype '{archetypeId}': status is 'stable' but 'reviewed_by' is empty");
+                }
+                if (string.IsNullOrWhiteSpace(principles.StableSince))
+                {
+                    throw new ArchetypeValidationException(
+                        $"archetype '{archetypeId}': status is 'stable' but 'stable_since' is missing");
+                }
+                if (principles.SupersededBy is not null)
+                {
+                    throw new ArchetypeValidationException(
+                        $"archetype '{archetypeId}': 'superseded_by' is only valid when status is 'deprecated'");
+                }
+                break;
+
+            case ArchetypeStatus.Deprecated:
+                if (string.IsNullOrWhiteSpace(principles.SupersededBy))
+                {
+                    throw new ArchetypeValidationException(
+                        $"archetype '{archetypeId}': status is 'deprecated' but 'superseded_by' is missing");
+                }
+                break;
+
+            case ArchetypeStatus.Draft:
+                if (principles.SupersededBy is not null)
+                {
+                    throw new ArchetypeValidationException(
+                        $"archetype '{archetypeId}': 'superseded_by' is only valid when status is 'deprecated'");
+                }
+                break;
+
+            default:
+                throw new ArchetypeValidationException(
+                    $"archetype '{archetypeId}': unknown status value '{principles.Status}'");
         }
     }
 

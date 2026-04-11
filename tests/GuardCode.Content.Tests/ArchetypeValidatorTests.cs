@@ -36,7 +36,14 @@ public class ArchetypeValidatorTests
                 Title = "Example",
                 Summary = "summary",
                 AppliesTo = ["csharp"],
-                Keywords = ["example"]
+                Keywords = ["example"],
+                // Lifecycle fields required by ValidateLifecycle for Stable
+                // status (which is the record default). Kept in the helper so
+                // individual tests don't have to restate this boilerplate.
+                Status = ArchetypeStatus.Stable,
+                Author = "ehabhussein",
+                ReviewedBy = ["ehabhussein"],
+                StableSince = "2026-04-11",
             },
             PrinciplesBody: principlesBody,
             LanguageFiles: langMap);
@@ -281,6 +288,157 @@ public class ArchetypeValidatorTests
 
         act.Should().Throw<ArchetypeValidationException>()
            .WithMessage("*unterminated code block*");
+    }
+
+    // -------------------- Lifecycle validation --------------------
+
+    private static Archetype BuildWithPrinciples(PrinciplesFrontmatter principles)
+        => new(
+            Id: "test/example",
+            Principles: principles,
+            PrinciplesBody: FullyValidPrinciplesBody,
+            LanguageFiles: new Dictionary<string, LanguageFile>(StringComparer.Ordinal)
+            {
+                ["csharp"] = new LanguageFile(
+                    new LanguageFrontmatter
+                    {
+                        SchemaVersion = 1,
+                        Archetype = "test/example",
+                        Language = "csharp",
+                        PrinciplesFile = "_principles.md",
+                        Libraries = new LibrariesSection { Preferred = "lib" }
+                    },
+                    FullyValidLanguageBody),
+            });
+
+    private static PrinciplesFrontmatter BaseStablePrinciples() => new()
+    {
+        SchemaVersion = 1,
+        Archetype = "test/example",
+        Title = "Example",
+        Summary = "summary",
+        AppliesTo = ["csharp"],
+        Keywords = ["example"],
+        Status = ArchetypeStatus.Stable,
+        Author = "ehabhussein",
+        ReviewedBy = ["ehabhussein"],
+        StableSince = "2026-04-11",
+    };
+
+    private static readonly Dictionary<string, int> HappyLineCounts = new()
+    {
+        ["_principles.md"] = 20,
+        ["csharp.md"] = 20,
+    };
+
+    [Fact]
+    public void Validate_StableMissingAuthor_Throws()
+    {
+        var archetype = BuildWithPrinciples(BaseStablePrinciples() with { Author = "" });
+
+        var act = () => ArchetypeValidator.Validate(archetype, HappyLineCounts);
+
+        act.Should().Throw<ArchetypeValidationException>()
+           .WithMessage("*'stable'*'author' is missing*");
+    }
+
+    [Fact]
+    public void Validate_StableMissingReviewedBy_Throws()
+    {
+        var archetype = BuildWithPrinciples(BaseStablePrinciples() with { ReviewedBy = [] });
+
+        var act = () => ArchetypeValidator.Validate(archetype, HappyLineCounts);
+
+        act.Should().Throw<ArchetypeValidationException>()
+           .WithMessage("*'stable'*'reviewed_by' is empty*");
+    }
+
+    [Fact]
+    public void Validate_StableMissingStableSince_Throws()
+    {
+        var archetype = BuildWithPrinciples(BaseStablePrinciples() with { StableSince = null });
+
+        var act = () => ArchetypeValidator.Validate(archetype, HappyLineCounts);
+
+        act.Should().Throw<ArchetypeValidationException>()
+           .WithMessage("*'stable'*'stable_since' is missing*");
+    }
+
+    [Fact]
+    public void Validate_StableWithSupersededBy_Throws()
+    {
+        // superseded_by is only meaningful for deprecated archetypes.
+        var archetype = BuildWithPrinciples(
+            BaseStablePrinciples() with { SupersededBy = "test/example-v2" });
+
+        var act = () => ArchetypeValidator.Validate(archetype, HappyLineCounts);
+
+        act.Should().Throw<ArchetypeValidationException>()
+           .WithMessage("*'superseded_by' is only valid when status is 'deprecated'*");
+    }
+
+    [Fact]
+    public void Validate_DeprecatedMissingSupersededBy_Throws()
+    {
+        var archetype = BuildWithPrinciples(new PrinciplesFrontmatter
+        {
+            SchemaVersion = 1,
+            Archetype = "test/example",
+            Title = "Example",
+            Summary = "summary",
+            AppliesTo = ["csharp"],
+            Keywords = ["example"],
+            Status = ArchetypeStatus.Deprecated,
+            // SupersededBy intentionally null — the whole point of this test
+        });
+
+        var act = () => ArchetypeValidator.Validate(archetype, HappyLineCounts);
+
+        act.Should().Throw<ArchetypeValidationException>()
+           .WithMessage("*'deprecated'*'superseded_by' is missing*");
+    }
+
+    [Fact]
+    public void Validate_Draft_DoesNotRequireStableFields()
+    {
+        // Drafts are explicitly work-in-progress — they can ship without
+        // author, reviewers, or a stable date. The validator still runs
+        // every other structural check against them.
+        var archetype = BuildWithPrinciples(new PrinciplesFrontmatter
+        {
+            SchemaVersion = 1,
+            Archetype = "test/example",
+            Title = "Example",
+            Summary = "summary",
+            AppliesTo = ["csharp"],
+            Keywords = ["example"],
+            Status = ArchetypeStatus.Draft,
+        });
+
+        var act = () => ArchetypeValidator.Validate(archetype, HappyLineCounts);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_DraftWithSupersededBy_Throws()
+    {
+        var archetype = BuildWithPrinciples(new PrinciplesFrontmatter
+        {
+            SchemaVersion = 1,
+            Archetype = "test/example",
+            Title = "Example",
+            Summary = "summary",
+            AppliesTo = ["csharp"],
+            Keywords = ["example"],
+            Status = ArchetypeStatus.Draft,
+            SupersededBy = "test/example-v2",
+        });
+
+        var act = () => ArchetypeValidator.Validate(archetype, HappyLineCounts);
+
+        act.Should().Throw<ArchetypeValidationException>()
+           .WithMessage("*'superseded_by' is only valid when status is 'deprecated'*");
     }
 
     [Fact]

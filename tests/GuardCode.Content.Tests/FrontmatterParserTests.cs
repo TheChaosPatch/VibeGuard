@@ -20,6 +20,10 @@ public class FrontmatterParserTests
         title: Password Hashing
         summary: Storing, verifying, and handling user passwords in any backend.
         applies_to: [csharp, python, go]
+        status: stable
+        author: ehabhussein
+        reviewed_by: [ehabhussein]
+        stable_since: "2026-04-11"
         keywords:
           - password
           - bcrypt
@@ -113,5 +117,118 @@ public class FrontmatterParserTests
             """;
         var act = () => FrontmatterParser.ParsePrinciples(content);
         act.Should().Throw<FrontmatterParseException>();
+    }
+
+    [Fact]
+    public void Parse_MissingStatus_Throws()
+    {
+        // All other fields present; only 'status' is absent. The parser should
+        // reject this before the projection layer runs — lifecycle is required.
+        const string content =
+            """
+            ---
+            schema_version: 1
+            archetype: auth/password-hashing
+            title: Password Hashing
+            summary: s
+            applies_to: [csharp]
+            keywords: [k]
+            ---
+
+            body
+            """;
+        var act = () => FrontmatterParser.ParsePrinciples(content);
+        act.Should().Throw<FrontmatterParseException>()
+           .WithMessage("*missing required field 'status'*");
+    }
+
+    [Fact]
+    public void Parse_UnknownStatus_Throws()
+    {
+        const string content =
+            """
+            ---
+            schema_version: 1
+            archetype: auth/password-hashing
+            title: Password Hashing
+            summary: s
+            applies_to: [csharp]
+            status: experimental
+            keywords: [k]
+            ---
+
+            body
+            """;
+        var act = () => FrontmatterParser.ParsePrinciples(content);
+        act.Should().Throw<FrontmatterParseException>()
+           .WithMessage("*must be one of draft, stable, deprecated*experimental*");
+    }
+
+    [Fact]
+    public void Parse_StableStatus_ProjectsLifecycleFields()
+    {
+        var result = FrontmatterParser.ParsePrinciples(ValidPrinciples);
+
+        result.Frontmatter.Status.Should().Be(ArchetypeStatus.Stable);
+        result.Frontmatter.Author.Should().Be("ehabhussein");
+        result.Frontmatter.ReviewedBy.Should().ContainSingle().Which.Should().Be("ehabhussein");
+        result.Frontmatter.StableSince.Should().Be("2026-04-11");
+        result.Frontmatter.SupersededBy.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_DraftStatus_AllowsMissingStableFields()
+    {
+        // A draft does not require author/reviewed_by/stable_since at the
+        // parser level — those gates live in the validator. The parser just
+        // needs to accept 'draft' as a legal value and project null defaults
+        // through to the record.
+        const string content =
+            """
+            ---
+            schema_version: 1
+            archetype: auth/password-hashing
+            title: Password Hashing
+            summary: s
+            applies_to: [csharp]
+            status: draft
+            keywords: [k]
+            ---
+
+            body
+            """;
+
+        var result = FrontmatterParser.ParsePrinciples(content);
+
+        result.Frontmatter.Status.Should().Be(ArchetypeStatus.Draft);
+        result.Frontmatter.Author.Should().BeEmpty();
+        result.Frontmatter.ReviewedBy.Should().BeEmpty();
+        result.Frontmatter.StableSince.Should().BeNull();
+        result.Frontmatter.SupersededBy.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_DeprecatedStatus_ProjectsSupersededBy()
+    {
+        const string content =
+            """
+            ---
+            schema_version: 1
+            archetype: auth/password-hashing
+            title: Password Hashing
+            summary: s
+            applies_to: [csharp]
+            status: deprecated
+            superseded_by: auth/password-hashing-v2
+            keywords: [k]
+            ---
+
+            body
+            """;
+
+        var result = FrontmatterParser.ParsePrinciples(content);
+
+        result.Frontmatter.Status.Should().Be(ArchetypeStatus.Deprecated);
+        result.Frontmatter.SupersededBy.Should().Be("auth/password-hashing-v2");
     }
 }

@@ -30,8 +30,15 @@ var archetypesRoot = Path.IsPathRooted(configured)
     ? configured
     : Path.GetFullPath(configured, AppContext.BaseDirectory);
 
+// Drafts are hidden from the default active corpus. Contributors testing
+// their own in-progress archetypes opt in with GUARDCODE_INCLUDE_DRAFTS=1
+// (any non-empty value enables it, to match the stdlib convention for
+// boolean env flags).
+var includeDrafts = !string.IsNullOrEmpty(
+    Environment.GetEnvironmentVariable("GUARDCODE_INCLUDE_DRAFTS"));
+
 builder.Services
-    .AddSingleton<IArchetypeRepository>(_ => new FileSystemArchetypeRepository(archetypesRoot))
+    .AddSingleton<IArchetypeRepository>(_ => new FileSystemArchetypeRepository(archetypesRoot, includeDrafts))
     .AddSingleton<IArchetypeIndex>(sp =>
     {
         var repo = sp.GetRequiredService<IArchetypeRepository>();

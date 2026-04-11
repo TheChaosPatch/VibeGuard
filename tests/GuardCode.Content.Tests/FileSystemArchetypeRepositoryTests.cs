@@ -2,7 +2,9 @@
 // CA1707: xUnit idiomatic Method_State_Expected naming.
 // CA1861: inline constant arrays in test fixtures are clearer than hoisted statics.
 
+using GuardCode.Content;
 using GuardCode.Content.Loading;
+using GuardCode.Content.Validation;
 
 namespace GuardCode.Content.Tests;
 
@@ -39,6 +41,10 @@ public sealed class FileSystemArchetypeRepositoryTests : IDisposable
         title: Password Hashing
         summary: Summary.
         applies_to: [csharp]
+        status: stable
+        author: ehabhussein
+        reviewed_by: [ehabhussein]
+        stable_since: "2026-04-11"
         keywords: [password]
         ---
 
@@ -98,6 +104,10 @@ public sealed class FileSystemArchetypeRepositoryTests : IDisposable
         title: Input Validation
         summary: Summary.
         applies_to: [csharp]
+        status: stable
+        author: ehabhussein
+        reviewed_by: [ehabhussein]
+        stable_since: "2026-04-11"
         keywords: [input, validation]
         ---
 
@@ -177,5 +187,115 @@ public sealed class FileSystemArchetypeRepositoryTests : IDisposable
 
         act.Should().Throw<ArchetypeLoadException>()
             .WithMessage("*refusing to load file outside archetypes root*");
+    }
+
+    // -------------------- Lifecycle filtering --------------------
+
+    // Drafts deliberately skip author/reviewed_by/stable_since — those are
+    // stable-only requirements. The required body sections are still present
+    // so the validator doesn't reject the content for unrelated reasons.
+    private const string ValidDraftPrinciples =
+        """
+        ---
+        schema_version: 1
+        archetype: io/draft-thing
+        title: Draft Thing
+        summary: Summary.
+        applies_to: [csharp]
+        status: draft
+        keywords: [draft]
+        ---
+
+        # Draft Thing — Principles
+
+        ## When this applies
+        While drafting.
+
+        ## Architectural placement
+        At edges.
+
+        ## Principles
+        Be tentative.
+
+        ## Anti-patterns
+        Shipping drafts.
+
+        ## References
+        N/A.
+        """;
+
+    [Fact]
+    public void LoadAll_DraftArchetype_ExcludedByDefault()
+    {
+        WriteFile("auth/password-hashing/_principles.md", ValidPrinciples);
+        WriteFile("auth/password-hashing/csharp.md", ValidCsharp);
+        WriteFile("io/draft-thing/_principles.md", ValidDraftPrinciples);
+
+        var repo = new FileSystemArchetypeRepository(_rootDir);
+        var archetypes = repo.LoadAll();
+
+        archetypes.Should().ContainSingle()
+                  .Which.Id.Should().Be("auth/password-hashing");
+    }
+
+    [Fact]
+    public void LoadAll_DraftArchetype_IncludedWhenFlagSet()
+    {
+        WriteFile("auth/password-hashing/_principles.md", ValidPrinciples);
+        WriteFile("auth/password-hashing/csharp.md", ValidCsharp);
+        WriteFile("io/draft-thing/_principles.md", ValidDraftPrinciples);
+
+        var repo = new FileSystemArchetypeRepository(_rootDir, includeDrafts: true);
+        var archetypes = repo.LoadAll();
+
+        archetypes.Should().HaveCount(2);
+        archetypes.Should().Contain(a => a.Id == "io/draft-thing"
+                                      && a.Principles.Status == ArchetypeStatus.Draft);
+    }
+
+    [Fact]
+    public void LoadAll_BrokenDraft_FailsValidationEvenWhenHidden()
+    {
+        // Key invariant: drafts are hidden from the active corpus by default,
+        // but they are still parsed and validated so CI catches breakage in
+        // in-progress archetypes before they get merged.
+        const string BrokenDraftPrinciples =
+            """
+            ---
+            schema_version: 1
+            archetype: io/draft-thing
+            title: Draft Thing
+            summary: Summary.
+            applies_to: [csharp]
+            status: draft
+            superseded_by: io/other-thing
+            keywords: [draft]
+            ---
+
+            # Draft Thing — Principles
+
+            ## When this applies
+            x
+
+            ## Architectural placement
+            x
+
+            ## Principles
+            x
+
+            ## Anti-patterns
+            x
+
+            ## References
+            x
+            """;
+        WriteFile("io/draft-thing/_principles.md", BrokenDraftPrinciples);
+
+        var repo = new FileSystemArchetypeRepository(_rootDir);
+
+        var act = () => repo.LoadAll();
+
+        act.Should().Throw<ArchetypeValidationException>()
+           .WithMessage("*'superseded_by' is only valid when status is 'deprecated'*");
     }
 }

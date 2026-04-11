@@ -34,8 +34,21 @@ public sealed class FileSystemArchetypeRepository : IArchetypeRepository
     };
 
     private readonly string _rootFullPath;
+    private readonly bool _includeDrafts;
 
     public FileSystemArchetypeRepository(string rootPath)
+        : this(rootPath, includeDrafts: false)
+    {
+    }
+
+    /// <summary>
+    /// Create a repository with explicit control over draft visibility.
+    /// When <paramref name="includeDrafts"/> is <c>false</c> (the default),
+    /// draft archetypes are still parsed and validated so broken drafts
+    /// fail CI, but they are omitted from the returned corpus and will
+    /// not appear in <c>prep</c> results or resolve via <c>consult</c>.
+    /// </summary>
+    public FileSystemArchetypeRepository(string rootPath, bool includeDrafts)
     {
         if (string.IsNullOrWhiteSpace(rootPath))
         {
@@ -47,6 +60,7 @@ public sealed class FileSystemArchetypeRepository : IArchetypeRepository
                 $"archetypes root does not exist: {rootPath}");
         }
         _rootFullPath = EnsureTrailingSeparator(Path.GetFullPath(rootPath));
+        _includeDrafts = includeDrafts;
     }
 
     public IReadOnlyList<Archetype> LoadAll()
@@ -61,6 +75,16 @@ public sealed class FileSystemArchetypeRepository : IArchetypeRepository
             var archetypeId = DeriveArchetypeId(directory);
             var (archetype, rawLineCounts) = ArchetypeLoader.LoadWithLineCounts(archetypeId, files);
             ArchetypeValidator.Validate(archetype, rawLineCounts);
+
+            // Drafts are parsed and validated so broken drafts fail CI, but
+            // they are hidden from the active corpus unless the caller opted
+            // in. Hiding happens here (not in the loader/validator) because
+            // the filter is a deployment concern, not a content concern.
+            if (!_includeDrafts && archetype.Principles.Status == ArchetypeStatus.Draft)
+            {
+                continue;
+            }
+
             archetypes.Add(archetype);
         }
 

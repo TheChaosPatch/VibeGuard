@@ -40,6 +40,10 @@ public static class FrontmatterParser
     private const string ErrMissingOpen = "file does not begin with YAML frontmatter delimiter (---)";
     private const string ErrUnclosed = "YAML frontmatter is not closed — missing terminating --- delimiter";
     private const string ErrMalformedPrefix = "YAML frontmatter is malformed or contains unknown fields: ";
+    private const string ErrMissingStatus =
+        "frontmatter is missing required field 'status' (one of: draft, stable, deprecated)";
+    private const string ErrUnknownStatusPrefix =
+        "frontmatter field 'status' must be one of draft, stable, deprecated — got: ";
 
     private static readonly IDeserializer Deserializer = new DeserializerBuilder()
         .WithNamingConvention(UnderscoredNamingConvention.Instance)
@@ -53,6 +57,16 @@ public static class FrontmatterParser
     public static ParseResult<PrinciplesFrontmatter> ParsePrinciples(string fileContent)
     {
         var (dto, body) = ParseInternal<PrinciplesFrontmatterDto>(fileContent);
+
+        if (string.IsNullOrWhiteSpace(dto.Status))
+        {
+            throw new FrontmatterParseException(ErrMissingStatus);
+        }
+        if (!ArchetypeStatusExtensions.TryParseWire(dto.Status, out var status))
+        {
+            throw new FrontmatterParseException(ErrUnknownStatusPrefix + dto.Status);
+        }
+
         var projected = new PrinciplesFrontmatter
         {
             SchemaVersion = dto.SchemaVersion,
@@ -64,6 +78,11 @@ public static class FrontmatterParser
             RelatedArchetypes = dto.RelatedArchetypes.ToArray(),
             EquivalentsIn = dto.EquivalentsIn.ToFrozenDictionary(StringComparer.Ordinal),
             References = dto.References.ToFrozenDictionary(StringComparer.Ordinal),
+            Status = status,
+            Author = dto.Author ?? string.Empty,
+            ReviewedBy = dto.ReviewedBy.ToArray(),
+            StableSince = string.IsNullOrWhiteSpace(dto.StableSince) ? null : dto.StableSince,
+            SupersededBy = string.IsNullOrWhiteSpace(dto.SupersededBy) ? null : dto.SupersededBy,
         };
         return new ParseResult<PrinciplesFrontmatter>(projected, body);
     }
@@ -181,6 +200,15 @@ file sealed class PrinciplesFrontmatterDto
     public List<string> RelatedArchetypes { get; set; } = [];
     public Dictionary<string, string> EquivalentsIn { get; set; } = [];
     public Dictionary<string, string> References { get; set; } = [];
+
+    // Lifecycle metadata. Nullable on the DTO so YamlDotNet can tell
+    // "absent" apart from "empty"; the projection layer enforces which
+    // fields are required.
+    public string? Status { get; set; }
+    public string? Author { get; set; }
+    public List<string> ReviewedBy { get; set; } = [];
+    public string? StableSince { get; set; }
+    public string? SupersededBy { get; set; }
 }
 
 file sealed class LanguageFrontmatterDto
