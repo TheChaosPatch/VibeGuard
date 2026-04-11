@@ -41,7 +41,7 @@ builder.Services
     .AddSingleton<IConsultationService, ConsultationService>();
 
 builder.Services
-    .AddMcpServer()
+    .AddMcpServer(opts => opts.ServerInstructions = ServerInstructions.Text)
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
