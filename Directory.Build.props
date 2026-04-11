@@ -11,7 +11,7 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <Company>VibeGuard</Company>
     <Product>VibeGuard MCP Server</Product>
   </PropertyGroup>
