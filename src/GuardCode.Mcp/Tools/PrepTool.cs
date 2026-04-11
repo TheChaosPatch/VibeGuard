@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.ComponentModel;
 using GuardCode.Content;
 using GuardCode.Content.Services;
@@ -50,7 +49,7 @@ internal static class PrepTool
             }
             return new PrepToolResponse(matches, Error: null);
         }
-        catch (System.ArgumentException ex)
+        catch (ArgumentException ex)
         {
             return PrepToolResponse.ErrorResponse(ex.Message);
         }
@@ -64,5 +63,5 @@ internal sealed record PrepToolResponse(
     string? Error)
 {
     public static PrepToolResponse ErrorResponse(string message)
-        => new(System.Array.Empty<PrepToolMatch>(), message);
+        => new([], message);
 }

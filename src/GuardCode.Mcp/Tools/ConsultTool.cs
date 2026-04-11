@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.ComponentModel;
 using GuardCode.Content;
@@ -52,7 +51,7 @@ internal static class ConsultTool
                 References: result.References,
                 Error: null);
         }
-        catch (System.ArgumentException ex)
+        catch (ArgumentException ex)
         {
             return ConsultToolResponse.ErrorResponse(archetype, language, ex.Message);
         }
@@ -79,8 +78,8 @@ internal sealed record ConsultToolResponse(
             Redirect: false,
             NotFound: false,
             Message: null,
-            Suggested: System.Array.Empty<string>(),
-            RelatedArchetypes: System.Array.Empty<string>(),
+            Suggested: [],
+            RelatedArchetypes: [],
             References: ImmutableDictionary<string, string>.Empty,
             Error: error);
 }
