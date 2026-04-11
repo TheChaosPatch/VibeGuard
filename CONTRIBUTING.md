@@ -1,6 +1,6 @@
-# Contributing to GuardCode
+# Contributing to VibeGuard
 
-GuardCode's value lives in its content. The server code is small, deterministic, and unlikely to need frequent changes; the corpus under `archetypes/` is where most PRs will land. This document explains the archetype schema, the budgets the validator enforces, and how to propose a new archetype or language file.
+VibeGuard's value lives in its content. The server code is small, deterministic, and unlikely to need frequent changes; the corpus under `archetypes/` is where most PRs will land. This document explains the archetype schema, the budgets the validator enforces, and how to propose a new archetype or language file.
 
 ## Archetype anatomy
 
@@ -98,7 +98,7 @@ The hardest part is writing advice that is genuinely useful and stays useful. A 
 
 ## Archetype lifecycle
 
-Every archetype carries an explicit lifecycle stage in its frontmatter. The stage is how GuardCode tells work-in-progress content apart from signed-off content without fragmenting the directory layout or breaking archetype IDs when content graduates.
+Every archetype carries an explicit lifecycle stage in its frontmatter. The stage is how VibeGuard tells work-in-progress content apart from signed-off content without fragmenting the directory layout or breaking archetype IDs when content graduates.
 
 There are three stages:
 
@@ -111,7 +111,7 @@ A draft is an archetype that is being written but is not yet ready for LLMs to c
 - Do **not** require `author`, `reviewed_by`, or `stable_since` in frontmatter. Drafts are deliberately loose.
 - Must **not** carry `superseded_by` — that field is reserved for deprecations.
 
-To see drafts locally while you're working on them, set `GUARDCODE_INCLUDE_DRAFTS=1` before launching the MCP server. Any non-empty value enables it.
+To see drafts locally while you're working on them, set `VIBEGUARD_INCLUDE_DRAFTS=1` before launching the MCP server. Any non-empty value enables it.
 
 ### `stable`
 
@@ -144,7 +144,7 @@ Nothing is ever deleted. Nothing is ever renamed — archetype IDs are permanent
 
 ## How to propose a new archetype
 
-1. Open an issue first if you're unsure whether the archetype is in scope — GuardCode targets function- or class-level guidance for backend and systems code.
+1. Open an issue first if you're unsure whether the archetype is in scope — VibeGuard targets function- or class-level guidance for backend and systems code.
 2. Fork the repo and create a branch.
 3. Add the directory, the principles file (with `status: draft`), and at least one language file. You do not need `author`, `reviewed_by`, or `stable_since` while the archetype is a draft.
 4. Run the tests: `dotnet test SecureCodingMcp.slnx`. The content-corpus smoke test will catch most validation errors immediately.

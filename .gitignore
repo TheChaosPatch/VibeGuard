@@ -1,5 +1,5 @@
 # ---------------------------------------------------------
-# GuardCode — .gitignore
+# VibeGuard — .gitignore
 # .NET 10 / C# 14 solution, plus the usual IDE + OS noise.
 # Kept tight on purpose: we want to see every config drift,
 # not bury it under a 300-line boilerplate ignore file.
@@ -45,7 +45,7 @@ packages/
 .vscode/
 
 # Secrets and local config — defensive.
-# GuardCode's own content teaches "never commit secrets";
+# VibeGuard's own content teaches "never commit secrets";
 # the repo must practice what it preaches.
 appsettings.Local.json
 appsettings.*.Local.json

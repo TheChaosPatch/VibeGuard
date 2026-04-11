@@ -39,7 +39,7 @@ def current_user(
             creds.credentials,
             key=_signing_key(),  # resolved from SecretsProvider at startup
             algorithms=["RS256"],
-            audience="guardcode-api",
+            audience="vibeguard-api",
             issuer="https://auth.example.com/",
             leeway=30,
         )

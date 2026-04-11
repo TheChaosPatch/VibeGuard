@@ -1,14 +1,14 @@
 <Project>
 
   <!--
-    Central Package Management for GuardCode.
+    Central Package Management for VibeGuard.
 
     Every NuGet version lives here. The three csproj files reference
     packages by ID only (no Version attribute). To update a dependency,
     change the version in one place and rebuild.
 
     Policy: always use the latest stable version. See the
-    "NuGet policy" note in docs/superpowers/plans/2026-04-11-guardcode-implementation.md.
+    "NuGet policy" note in docs/superpowers/plans/2026-04-11-vibeguard-implementation.md.
 
     The versions below were current at 2026-04-11. If you are reading
     this later, run `dotnet list package` with the outdated flag
@@ -21,17 +21,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- GuardCode.Content -->
+    <!-- VibeGuard.Content -->
     <PackageVersion Include="YamlDotNet" Version="17.0.1" />
     <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.201" />
 
-    <!-- GuardCode.Mcp -->
+    <!-- VibeGuard.Mcp -->
     <PackageVersion Include="ModelContextProtocol" Version="1.2.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
 
-    <!-- GuardCode.Content.Tests -->
+    <!-- VibeGuard.Content.Tests -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />

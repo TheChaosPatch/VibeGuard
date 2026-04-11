@@ -5,10 +5,10 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/src/">
-    <Project Path="src/GuardCode.Content/GuardCode.Content.csproj" />
-    <Project Path="src/GuardCode.Mcp/GuardCode.Mcp.csproj" />
+    <Project Path="src/VibeGuard.Content/VibeGuard.Content.csproj" />
+    <Project Path="src/VibeGuard.Mcp/VibeGuard.Mcp.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/GuardCode.Content.Tests/GuardCode.Content.Tests.csproj" />
+    <Project Path="tests/VibeGuard.Content.Tests/VibeGuard.Content.Tests.csproj" />
   </Folder>
 </Solution>
