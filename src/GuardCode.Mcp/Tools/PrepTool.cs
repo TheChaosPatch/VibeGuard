@@ -8,10 +8,13 @@ namespace GuardCode.Mcp.Tools;
 
 /// <summary>
 /// MCP tool handler for the <c>prep</c> tool. Thin translator:
-/// validates the language and framework enums, delegates to
+/// parses the language wire-string (framework is passed through
+/// unchanged for forward compatibility), delegates to
 /// <see cref="IPrepService"/>, and returns a serializable shape.
 /// All scoring, filtering, and content lookup happens in the service.
 /// </summary>
+// internal: CA1515 under AllEnabledByDefault; the MCP SDK discovers tool
+// types by attribute via reflection, not by visibility (see WithToolsFromAssembly).
 [McpServerToolType]
 internal static class PrepTool
 {
@@ -33,17 +36,24 @@ internal static class PrepTool
                 $"language '{language}' is not supported. Expected one of: csharp, python, c, go.");
         }
 
-        var result = service.Prep(intent, parsedLanguage, framework);
-        var matches = new List<PrepToolMatch>(result.Matches.Count);
-        foreach (var match in result.Matches)
+        try
         {
-            matches.Add(new PrepToolMatch(
-                Archetype: match.ArchetypeId,
-                Title: match.Title,
-                Summary: match.Summary,
-                Score: match.Score));
+            var result = service.Prep(intent, parsedLanguage, framework);
+            var matches = new List<PrepToolMatch>(result.Matches.Count);
+            foreach (var match in result.Matches)
+            {
+                matches.Add(new PrepToolMatch(
+                    Archetype: match.ArchetypeId,
+                    Title: match.Title,
+                    Summary: match.Summary,
+                    Score: match.Score));
+            }
+            return new PrepToolResponse(matches, Error: null);
         }
-        return new PrepToolResponse(matches, Error: null);
+        catch (System.ArgumentException ex)
+        {
+            return PrepToolResponse.ErrorResponse(ex.Message);
+        }
     }
 }
 

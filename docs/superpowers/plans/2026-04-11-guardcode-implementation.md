@@ -2912,17 +2912,24 @@ public static class PrepTool
                 $"language '{language}' is not supported. Expected one of: csharp, python, c, go.");
         }
 
-        var result = service.Prep(intent, parsedLanguage, framework);
-        var matches = new List<PrepToolMatch>(result.Matches.Count);
-        foreach (var match in result.Matches)
+        try
         {
-            matches.Add(new PrepToolMatch(
-                Archetype: match.ArchetypeId,
-                Title: match.Title,
-                Summary: match.Summary,
-                Score: match.Score));
+            var result = service.Prep(intent, parsedLanguage, framework);
+            var matches = new List<PrepToolMatch>(result.Matches.Count);
+            foreach (var match in result.Matches)
+            {
+                matches.Add(new PrepToolMatch(
+                    Archetype: match.ArchetypeId,
+                    Title: match.Title,
+                    Summary: match.Summary,
+                    Score: match.Score));
+            }
+            return new PrepToolResponse(matches, Error: null);
         }
-        return new PrepToolResponse(matches, Error: null);
+        catch (System.ArgumentException ex)
+        {
+            return PrepToolResponse.Error(ex.Message);
+        }
     }
 }
 

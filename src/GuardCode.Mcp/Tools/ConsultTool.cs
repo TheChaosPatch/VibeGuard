@@ -12,6 +12,8 @@ namespace GuardCode.Mcp.Tools;
 /// arguments to service input, then reshapes the <see cref="ConsultResult"/>
 /// into a wire format that matches design spec §3.2.
 /// </summary>
+// internal: CA1515 under AllEnabledByDefault; the MCP SDK discovers tool
+// types by attribute via reflection, not by visibility (see WithToolsFromAssembly).
 [McpServerToolType]
 internal static class ConsultTool
 {
