@@ -98,6 +98,8 @@ public class ConsultationServiceTests
         result.Content.Should().BeNull();
         result.Suggested.Should().ContainSingle().Which.Should().Be("io/input-validation");
         result.Message.Should().Contain("io/input-validation");
+        result.Message.Should().Contain("Archetype 'memory/safe-string-handling' does not apply to python");
+        result.Message.Should().Contain("See 'io/input-validation' for the equivalent guidance in python");
     }
 
     [Fact]
@@ -115,6 +117,9 @@ public class ConsultationServiceTests
         result.Redirect.Should().BeTrue();
         result.Suggested.Should().BeEmpty();
         result.Message.Should().Contain("No direct equivalent");
+        result.Message.Should().Contain("Archetype 'memory/safe-string-handling' does not apply to python");
+        result.Message.Should().Contain("No direct equivalent is registered");
+        result.Message.Should().Contain("consider searching with prep()");
     }
 
     [Fact]
@@ -128,6 +133,7 @@ public class ConsultationServiceTests
         result.NotFound.Should().BeTrue();
         result.Redirect.Should().BeFalse();
         result.Content.Should().BeNull();
+        result.Message.Should().Be("Archetype 'nope/nope' was not found.");
     }
 
     [Fact]
@@ -140,5 +146,24 @@ public class ConsultationServiceTests
 
         act.Should().Throw<ArgumentException>()
            .WithMessage("*not a valid identifier*");
+    }
+
+    [Fact]
+    public void Consult_AppliesToListsLanguageButFileMissing_ReturnsNotFoundWithDisconnectMessage()
+    {
+        var archetype = Make(
+            "memory/safe-string-handling",
+            appliesTo: new[] { "c", "python" },
+            languageFiles: new[] { ("c", "C_BODY") });
+        var index = KeywordArchetypeIndex.Build(new[] { archetype });
+        var service = new ConsultationService(index);
+
+        var result = service.Consult("memory/safe-string-handling", SupportedLanguage.Python);
+
+        result.NotFound.Should().BeTrue();
+        result.Redirect.Should().BeFalse();
+        result.Content.Should().BeNull();
+        result.Message.Should().Contain("lists python in applies_to");
+        result.Message.Should().Contain("but no language file exists on disk");
     }
 }

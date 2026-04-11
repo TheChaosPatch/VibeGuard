@@ -82,17 +82,23 @@ public sealed partial class ConsultationService(IArchetypeIndex index) : IConsul
 
     private static ConsultResult Redirect(Archetype archetype, string wireLanguage)
     {
-        archetype.Principles.EquivalentsIn.TryGetValue(wireLanguage, out var equivalentId);
+        var suggested = new List<string>();
+        string message;
 
-        var suggested = equivalentId is not null
-            ? new[] { equivalentId }
-            : Array.Empty<string>();
-
-        var message = equivalentId is not null
-            ? $"This archetype does not apply to {wireLanguage}. " +
-              $"Consider '{equivalentId}' instead."
-            : $"No direct equivalent for {wireLanguage}. " +
-              $"This archetype applies to: {string.Join(", ", archetype.Principles.AppliesTo)}.";
+        if (archetype.Principles.EquivalentsIn.TryGetValue(wireLanguage, out var equivalent))
+        {
+            suggested.Add(equivalent);
+            message =
+                $"Archetype '{archetype.Id}' does not apply to {wireLanguage}. " +
+                $"See '{equivalent}' for the equivalent guidance in {wireLanguage}.";
+        }
+        else
+        {
+            message =
+                $"Archetype '{archetype.Id}' does not apply to {wireLanguage}. " +
+                "No direct equivalent is registered; consider searching with prep() for " +
+                "a related archetype in this language.";
+        }
 
         return new ConsultResult(
             Archetype: archetype.Id,
