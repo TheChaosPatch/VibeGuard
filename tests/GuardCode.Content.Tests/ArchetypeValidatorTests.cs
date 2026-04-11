@@ -189,4 +189,132 @@ public class ArchetypeValidatorTests
 
         act.Should().NotThrow();
     }
+
+    [Fact]
+    public void Validate_FileExactly200Lines_DoesNotThrow()
+    {
+        var archetype = BuildArchetype(
+            principlesBody: FullyValidPrinciplesBody,
+            languageFiles: new[] { ("csharp", FullyValidLanguageBody) });
+        var rawLineCounts = new Dictionary<string, int>
+        {
+            ["_principles.md"] = 20,
+            ["csharp.md"] = 200,
+        };
+
+        var act = () => ArchetypeValidator.Validate(archetype, rawLineCounts);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_ReferenceImplementationExactly40CodeLines_DoesNotThrow()
+    {
+        var exactCode = string.Join('\n', Enumerable.Range(0, 40).Select(i => $"void Line{i}() {{}}"));
+        var exactLanguageBody =
+            $$"""
+            # Example — C#
+
+            ## Library choice
+            Use LibX.
+
+            ## Reference implementation
+            ```csharp
+            {{exactCode}}
+            ```
+
+            ## Language-specific gotchas
+            N/A.
+
+            ## Tests to write
+            Test shape.
+            """;
+
+        var archetype = BuildArchetype(
+            principlesBody: FullyValidPrinciplesBody,
+            languageFiles: new[] { ("csharp", exactLanguageBody) });
+        var rawLineCounts = new Dictionary<string, int>
+        {
+            ["_principles.md"] = 20,
+            ["csharp.md"] = 80,
+        };
+
+        var act = () => ArchetypeValidator.Validate(archetype, rawLineCounts);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_ReferenceImplementationUnterminatedFence_Throws()
+    {
+        // All required headings are placed BEFORE "## Reference implementation"
+        // so the required-sections check passes and the validator reaches the
+        // reference-implementation budget check, where the unterminated fence fires.
+        var unterminatedLanguageBody =
+            """
+            # Example — C#
+
+            ## Library choice
+            Use LibX.
+
+            ## Language-specific gotchas
+            N/A.
+
+            ## Tests to write
+            Test shape.
+
+            ## Reference implementation
+            ```csharp
+            void Example() { }
+            """;
+
+        var archetype = BuildArchetype(
+            principlesBody: FullyValidPrinciplesBody,
+            languageFiles: new[] { ("csharp", unterminatedLanguageBody) });
+        var rawLineCounts = new Dictionary<string, int>
+        {
+            ["_principles.md"] = 20,
+            ["csharp.md"] = 20,
+        };
+
+        var act = () => ArchetypeValidator.Validate(archetype, rawLineCounts);
+
+        act.Should().Throw<ArchetypeValidationException>()
+           .WithMessage("*unterminated code block*");
+    }
+
+    [Fact]
+    public void Validate_ReferenceImplementationWithNoCodeBlock_DoesNotThrow()
+    {
+        var proseOnlyLanguageBody =
+            """
+            # Example — C#
+
+            ## Library choice
+            Use LibX.
+
+            ## Reference implementation
+            See the linked sample repository for a complete worked example.
+            No inline code block is provided here because the pattern is purely architectural.
+
+            ## Language-specific gotchas
+            N/A.
+
+            ## Tests to write
+            Test shape.
+            """;
+
+        var archetype = BuildArchetype(
+            principlesBody: FullyValidPrinciplesBody,
+            languageFiles: new[] { ("csharp", proseOnlyLanguageBody) });
+        var rawLineCounts = new Dictionary<string, int>
+        {
+            ["_principles.md"] = 20,
+            ["csharp.md"] = 20,
+        };
+
+        var act = () => ArchetypeValidator.Validate(archetype, rawLineCounts);
+
+        act.Should().NotThrow();
+    }
 }
