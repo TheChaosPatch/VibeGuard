@@ -1,3 +1,4 @@
+using VibeGuard.Content;
 using VibeGuard.Content.Indexing;
 using VibeGuard.Content.Loading;
 using VibeGuard.Content.Services;
@@ -37,8 +38,22 @@ var archetypesRoot = Path.IsPathRooted(configured)
 var includeDrafts = !string.IsNullOrEmpty(
     Environment.GetEnvironmentVariable("VIBEGUARD_INCLUDE_DRAFTS"));
 
+// Resolve the supported language set once at startup. Precedence mirrors
+// the archetypes root:
+// 1. VIBEGUARD_SUPPORTED_LANGUAGES (env, comma-separated)
+// 2. appsettings.json "VibeGuard:SupportedLanguages" (string array)
+// 3. SupportedLanguageSet.Default() — csharp, python, c, go, rust
+// A malformed value aborts startup with the same fail-loud contract as
+// a broken corpus: it is much better to fail at boot than to pretend
+// everything is fine and serve confusing errors per call.
+var supportedLanguages = ResolveSupportedLanguages(builder.Configuration);
+
 builder.Services
-    .AddSingleton<IArchetypeRepository>(_ => new FileSystemArchetypeRepository(archetypesRoot, includeDrafts))
+    .AddSingleton(supportedLanguages)
+    .AddSingleton<IArchetypeRepository>(sp => new FileSystemArchetypeRepository(
+        archetypesRoot,
+        includeDrafts,
+        sp.GetRequiredService<SupportedLanguageSet>()))
     .AddSingleton<IArchetypeIndex>(sp =>
     {
         var repo = sp.GetRequiredService<IArchetypeRepository>();
@@ -79,3 +94,23 @@ catch (Exception ex) when (
 
 await host.RunAsync().ConfigureAwait(false);
 return 0;
+
+static SupportedLanguageSet ResolveSupportedLanguages(IConfiguration configuration)
+{
+    var fromEnv = Environment.GetEnvironmentVariable("VIBEGUARD_SUPPORTED_LANGUAGES");
+    if (!string.IsNullOrWhiteSpace(fromEnv))
+    {
+        var entries = fromEnv.Split(
+            ',',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return new SupportedLanguageSet(entries);
+    }
+
+    var fromConfig = configuration.GetSection("VibeGuard:SupportedLanguages").Get<string[]>();
+    if (fromConfig is { Length: > 0 })
+    {
+        return new SupportedLanguageSet(fromConfig);
+    }
+
+    return SupportedLanguageSet.Default();
+}

@@ -7,7 +7,7 @@ VibeGuard's value lives in its content. The server code is small, deterministic,
 Each archetype lives at `archetypes/<category>/<name>/` and contains:
 
 - `_principles.md` — the universal, language-agnostic portion (required).
-- `<language>.md` — one per supported language (`csharp.md`, `python.md`, `c.md`, `go.md`).
+- `<language>.md` — one per supported language (`csharp.md`, `python.md`, `c.md`, `go.md`, `rust.md`, …). The server's supported-language set is configurable; the defaults are `csharp`, `python`, `c`, `go`, `rust`. A language file whose basename is not in the configured set fails the load.
 
 An archetype ID is the path under `archetypes/`, using forward slashes: for example, `auth/password-hashing`. IDs must match `^[a-z0-9\-]+(/[a-z0-9\-]+)*$` — lowercase ASCII, hyphens allowed, no spaces or underscores.
 
@@ -21,7 +21,7 @@ schema_version: 1
 archetype: category/name            # must match the directory path
 title: Human-readable title
 summary: One-sentence description, ≤ 140 chars.
-applies_to: [csharp, python, c, go] # subset of the MVP language set
+applies_to: [csharp, python, c, go, rust] # subset of the server's configured language set
 status: stable                      # draft | stable | deprecated (see Lifecycle)
 author: your-handle                 # required for stable
 reviewed_by: [reviewer-a]           # required non-empty for stable
@@ -153,12 +153,25 @@ Nothing is ever deleted. Nothing is ever renamed — archetype IDs are permanent
 
 ## How to add a new language to an existing archetype
 
-1. Add `<language>.md` to the archetype directory.
+1. Add `<language>.md` to the archetype directory. The language basename must be in the server's configured supported-language set — by default `csharp`, `python`, `c`, `go`, `rust`.
 2. Update the principles file's `applies_to` array to include the new language.
 3. Run the tests.
 4. Open a PR.
 
 You do not need to modify the principles file beyond the `applies_to` list — if you find yourself wanting to, the principles file may have been under-specified originally, and that is a conversation to have in the PR.
+
+### Adding a brand-new language (not already in the default set)
+
+The supported-language set is configurable at runtime, not compiled in. To add a language that isn't in the defaults (say, TypeScript):
+
+1. **Decide on the wire name.** Lowercase ASCII, must match `^[a-z][a-z0-9\-]*$`, ≤ 32 chars. For example `typescript`, not `TypeScript` or `ts`.
+2. **Extend the default set.** Edit `DefaultWireNames` in `src/VibeGuard.Content/SupportedLanguageSet.cs` to include the new wire name. (If you only want the language enabled on specific deployments, skip this step and configure `VIBEGUARD_SUPPORTED_LANGUAGES` or `VibeGuard:SupportedLanguages` on the server instead — no code change required.)
+3. **Write the content.** Add at least one archetype's `<language>.md` file and update that archetype's `applies_to` to include the new language.
+4. **Update tool description copy.** The `prep` and `consult` tool parameter descriptions in `src/VibeGuard.Mcp/Tools/` list the defaults verbatim; include the new wire name if you're extending the default set.
+5. **Run the tests.** The loader rejects unknown languages at load time, so any `applies_to` or filename entry that isn't in the configured set fails the content-corpus smoke test loudly.
+6. **Open a PR.** Include the rationale for the new language choice.
+
+Adding a language is primarily a content task — the server itself has no `SupportedLanguage` enum to extend, and the YAML loader, services, and MCP tools all accept arbitrary wire names already.
 
 ## Running the tests
 

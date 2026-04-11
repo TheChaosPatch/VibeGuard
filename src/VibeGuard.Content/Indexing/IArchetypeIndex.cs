@@ -10,9 +10,13 @@ public interface IArchetypeIndex
     /// <summary>
     /// Returns up to <paramref name="maxResults"/> archetypes whose
     /// keywords, title, or summary match the intent, filtered by the
-    /// requested language's <c>applies_to</c> membership.
+    /// requested language's <c>applies_to</c> membership. The caller is
+    /// responsible for validating <paramref name="language"/> against
+    /// the configured <see cref="SupportedLanguageSet"/> first — the
+    /// index itself is language-agnostic and simply matches the wire
+    /// string against each archetype's <c>applies_to</c>.
     /// </summary>
-    IReadOnlyList<PrepMatch> Search(string intent, SupportedLanguage language, int maxResults);
+    IReadOnlyList<PrepMatch> Search(string intent, string language, int maxResults);
 
     /// <summary>O(1) lookup by archetype ID. Returns <c>null</c> if unknown.</summary>
     Archetype? GetById(string archetypeId);

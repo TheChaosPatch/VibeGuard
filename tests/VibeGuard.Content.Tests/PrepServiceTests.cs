@@ -11,8 +11,13 @@ namespace VibeGuard.Content.Tests;
 
 public class PrepServiceTests
 {
+    private static readonly SupportedLanguageSet DefaultLanguages = SupportedLanguageSet.Default();
+
     private static IArchetypeIndex BuildIndex(params Archetype[] archetypes)
         => KeywordArchetypeIndex.Build(archetypes);
+
+    private static PrepService BuildService(params Archetype[] archetypes)
+        => new(BuildIndex(archetypes), DefaultLanguages);
 
     private static Archetype Make(
         string id,
@@ -37,14 +42,13 @@ public class PrepServiceTests
     [Fact]
     public void Prep_ValidIntent_ReturnsMatches()
     {
-        var index = BuildIndex(
+        var service = BuildService(
             Make("auth/password-hashing", "Password Hashing",
                 new[] { "password", "bcrypt" }, new[] { "csharp", "python" }));
-        var service = new PrepService(index);
 
         var result = service.Prep(
             intent: "I'm writing a function to hash a password",
-            language: SupportedLanguage.Python,
+            language: "python",
             framework: null);
 
         result.Matches.Should().ContainSingle()
@@ -54,17 +58,17 @@ public class PrepServiceTests
     [Fact]
     public void Prep_EmptyIntent_Throws()
     {
-        var service = new PrepService(BuildIndex());
-        var act = () => service.Prep("", SupportedLanguage.CSharp, null);
+        var service = BuildService();
+        var act = () => service.Prep("", "csharp", null);
         act.Should().Throw<ArgumentException>().WithMessage("*non-empty*");
     }
 
     [Fact]
     public void Prep_OversizedIntent_Throws()
     {
-        var service = new PrepService(BuildIndex());
+        var service = BuildService();
         var giant = new string('x', PrepService.MaxIntentLength + 1);
-        var act = () => service.Prep(giant, SupportedLanguage.CSharp, null);
+        var act = () => service.Prep(giant, "csharp", null);
         act.Should().Throw<ArgumentException>()
            .WithMessage("*characters or fewer*");
     }
@@ -72,16 +76,45 @@ public class PrepServiceTests
     [Fact]
     public void Prep_LanguageFilter_HidesUnsupportedArchetypes()
     {
-        var index = BuildIndex(
+        var service = BuildService(
             Make("memory/safe-string-handling", "Safe Strings",
                 new[] { "string", "buffer", "overflow" }, new[] { "c" }));
-        var service = new PrepService(index);
 
         var result = service.Prep(
             "safe string buffer handling",
-            SupportedLanguage.Python, // not in applies_to
+            "python", // not in applies_to
             framework: null);
 
         result.Matches.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Prep_LanguageNotInSet_ThrowsWithConfiguredListInMessage()
+    {
+        var service = BuildService();
+
+        var act = () => service.Prep("hashing and passwords", "klingon", null);
+
+        act.Should().Throw<ArgumentException>()
+           .WithMessage("*'klingon'*not supported*")
+           .And.Message.Should().Contain("csharp")
+           .And.Contain("rust");
+    }
+
+    [Fact]
+    public void Prep_RestrictedLanguageSet_RejectsOtherwiseValidLanguage()
+    {
+        // Rebuild the service with a set that excludes python entirely.
+        var cSharpOnly = new SupportedLanguageSet(["csharp"]);
+        var service = new PrepService(
+            BuildIndex(
+                Make("auth/password-hashing", "Password Hashing",
+                    new[] { "password" }, new[] { "csharp", "python" })),
+            cSharpOnly);
+
+        var act = () => service.Prep("hash a password", "python", null);
+
+        act.Should().Throw<ArgumentException>()
+           .WithMessage("*python*not supported*");
     }
 }

@@ -14,6 +14,10 @@ public interface IConsultationService
     /// <param name="archetypeId">
     /// The archetype identifier. Must match <c>^[a-z0-9\-]+(/[a-z0-9\-]+)*$</c>.
     /// </param>
-    /// <param name="language">The target programming language.</param>
-    ConsultResult Consult(string archetypeId, SupportedLanguage language);
+    /// <param name="language">
+    /// The target programming language as a wire-form identifier
+    /// (e.g. <c>"python"</c>, <c>"rust"</c>). Must be a member of the
+    /// configured <see cref="SupportedLanguageSet"/>.
+    /// </param>
+    ConsultResult Consult(string archetypeId, string language);
 }

@@ -19,6 +19,8 @@ namespace VibeGuard.Content.Tests;
 /// </summary>
 public class ContentCorpusSmokeTests
 {
+    private static readonly SupportedLanguageSet DefaultLanguages = SupportedLanguageSet.Default();
+
     private static string FindArchetypesRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -34,11 +36,14 @@ public class ContentCorpusSmokeTests
             "could not locate SecureCodingMcp.slnx by walking up from the test bin directory");
     }
 
+    private static FileSystemArchetypeRepository BuildRepo(string root)
+        => new(root, includeDrafts: false, DefaultLanguages);
+
     [Fact]
     public void RealCorpus_LoadsValidatesAndIndexes()
     {
         var root = FindArchetypesRoot();
-        var repo = new FileSystemArchetypeRepository(root);
+        var repo = BuildRepo(root);
 
         var archetypes = repo.LoadAll();
 
@@ -52,12 +57,12 @@ public class ContentCorpusSmokeTests
     public void Prep_FindsPasswordHashingForHashingIntent()
     {
         var root = FindArchetypesRoot();
-        var index = KeywordArchetypeIndex.Build(new FileSystemArchetypeRepository(root).LoadAll());
-        var prep = new PrepService(index);
+        var index = KeywordArchetypeIndex.Build(BuildRepo(root).LoadAll());
+        var prep = new PrepService(index, DefaultLanguages);
 
         var result = prep.Prep(
             "I'm about to write a function to hash and verify user passwords",
-            SupportedLanguage.Python,
+            "python",
             framework: null);
 
         result.Matches.Should().NotBeEmpty();
@@ -68,10 +73,10 @@ public class ContentCorpusSmokeTests
     public void Consult_ComposesPrinciplesAndLanguageBody()
     {
         var root = FindArchetypesRoot();
-        var index = KeywordArchetypeIndex.Build(new FileSystemArchetypeRepository(root).LoadAll());
-        var consult = new ConsultationService(index);
+        var index = KeywordArchetypeIndex.Build(BuildRepo(root).LoadAll());
+        var consult = new ConsultationService(index, DefaultLanguages);
 
-        var result = consult.Consult("auth/password-hashing", SupportedLanguage.Python);
+        var result = consult.Consult("auth/password-hashing", "python");
 
         result.NotFound.Should().BeFalse();
         result.Redirect.Should().BeFalse();
@@ -85,10 +90,10 @@ public class ContentCorpusSmokeTests
     public void Consult_InputValidationInC_HasContent()
     {
         var root = FindArchetypesRoot();
-        var index = KeywordArchetypeIndex.Build(new FileSystemArchetypeRepository(root).LoadAll());
-        var consult = new ConsultationService(index);
+        var index = KeywordArchetypeIndex.Build(BuildRepo(root).LoadAll());
+        var consult = new ConsultationService(index, DefaultLanguages);
 
-        var result = consult.Consult("io/input-validation", SupportedLanguage.C);
+        var result = consult.Consult("io/input-validation", "c");
 
         result.NotFound.Should().BeFalse();
         result.Redirect.Should().BeFalse();
@@ -99,10 +104,10 @@ public class ContentCorpusSmokeTests
     public void Consult_PasswordHashingInC_Redirects()
     {
         var root = FindArchetypesRoot();
-        var index = KeywordArchetypeIndex.Build(new FileSystemArchetypeRepository(root).LoadAll());
-        var consult = new ConsultationService(index);
+        var index = KeywordArchetypeIndex.Build(BuildRepo(root).LoadAll());
+        var consult = new ConsultationService(index, DefaultLanguages);
 
-        var result = consult.Consult("auth/password-hashing", SupportedLanguage.C);
+        var result = consult.Consult("auth/password-hashing", "c");
 
         result.Redirect.Should().BeTrue();
         result.NotFound.Should().BeFalse();

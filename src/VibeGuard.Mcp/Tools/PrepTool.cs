@@ -1,16 +1,16 @@
 using System.ComponentModel;
-using VibeGuard.Content;
 using VibeGuard.Content.Services;
 using ModelContextProtocol.Server;
 
 namespace VibeGuard.Mcp.Tools;
 
 /// <summary>
-/// MCP tool handler for the <c>prep</c> tool. Thin translator:
-/// parses the language wire-string (framework is passed through
-/// unchanged for forward compatibility), delegates to
-/// <see cref="IPrepService"/>, and returns a serializable shape.
-/// All scoring, filtering, and content lookup happens in the service.
+/// MCP tool handler for the <c>prep</c> tool. Thin translator: forwards
+/// the wire-string language unchanged (the service validates it against
+/// the configured <c>SupportedLanguageSet</c>), forwards the framework
+/// hint for forward compatibility, and reshapes the service result into
+/// a serializable response. All scoring, filtering, and content lookup
+/// happens in the service.
 /// </summary>
 // internal: CA1515 under AllEnabledByDefault; the MCP SDK discovers tool
 // types by attribute via reflection, not by visibility (see WithToolsFromAssembly).
@@ -26,18 +26,15 @@ internal static class PrepTool
     public static PrepToolResponse Run(
         IPrepService service,
         [Description("Free-text description of what you are about to write. Max 2000 chars.")] string intent,
-        [Description("Target language. One of: csharp, python, c, go.")] string language,
+        [Description(
+            "Target language as a lowercase wire name (e.g. 'csharp', 'python', 'c', 'go', 'rust'). " +
+            "The exact set is configured on the server; an unsupported value yields an error " +
+            "that lists the currently supported languages.")] string language,
         [Description("Optional framework hint. Accepted for forward compatibility; not used for filtering in MVP.")] string? framework = null)
     {
-        if (!SupportedLanguageExtensions.TryParseWire(language, out var parsedLanguage))
-        {
-            return PrepToolResponse.ErrorResponse(
-                $"language '{language}' is not supported. Expected one of: csharp, python, c, go.");
-        }
-
         try
         {
-            var result = service.Prep(intent, parsedLanguage, framework);
+            var result = service.Prep(intent, language, framework);
             var matches = new List<PrepToolMatch>(result.Matches.Count);
             foreach (var match in result.Matches)
             {

@@ -35,21 +35,35 @@ public sealed class FileSystemArchetypeRepository : IArchetypeRepository
 
     private readonly string _rootFullPath;
     private readonly bool _includeDrafts;
+    private readonly SupportedLanguageSet _supportedLanguages;
 
     public FileSystemArchetypeRepository(string rootPath)
-        : this(rootPath, includeDrafts: false)
+        : this(rootPath, includeDrafts: false, SupportedLanguageSet.Default())
+    {
+    }
+
+    public FileSystemArchetypeRepository(string rootPath, bool includeDrafts)
+        : this(rootPath, includeDrafts, SupportedLanguageSet.Default())
     {
     }
 
     /// <summary>
-    /// Create a repository with explicit control over draft visibility.
-    /// When <paramref name="includeDrafts"/> is <c>false</c> (the default),
-    /// draft archetypes are still parsed and validated so broken drafts
-    /// fail CI, but they are omitted from the returned corpus and will
-    /// not appear in <c>prep</c> results or resolve via <c>consult</c>.
+    /// Create a repository with explicit control over draft visibility
+    /// and the supported language set. When <paramref name="includeDrafts"/>
+    /// is <c>false</c> (the default), draft archetypes are still parsed
+    /// and validated so broken drafts fail CI, but they are omitted from
+    /// the returned corpus and will not appear in <c>prep</c> results or
+    /// resolve via <c>consult</c>. <paramref name="supportedLanguages"/>
+    /// is forwarded to <see cref="ArchetypeLoader"/>, which rejects any
+    /// archetype whose filenames or <c>applies_to</c> entries reference
+    /// a language outside the set.
     /// </summary>
-    public FileSystemArchetypeRepository(string rootPath, bool includeDrafts)
+    public FileSystemArchetypeRepository(
+        string rootPath,
+        bool includeDrafts,
+        SupportedLanguageSet supportedLanguages)
     {
+        ArgumentNullException.ThrowIfNull(supportedLanguages);
         if (string.IsNullOrWhiteSpace(rootPath))
         {
             throw new ArgumentException("root path must be non-empty", nameof(rootPath));
@@ -61,6 +75,7 @@ public sealed class FileSystemArchetypeRepository : IArchetypeRepository
         }
         _rootFullPath = EnsureTrailingSeparator(Path.GetFullPath(rootPath));
         _includeDrafts = includeDrafts;
+        _supportedLanguages = supportedLanguages;
     }
 
     public IReadOnlyList<Archetype> LoadAll()
@@ -73,7 +88,8 @@ public sealed class FileSystemArchetypeRepository : IArchetypeRepository
             if (!files.ContainsKey(ArchetypeLoader.PrinciplesFilename)) continue;
 
             var archetypeId = DeriveArchetypeId(directory);
-            var (archetype, rawLineCounts) = ArchetypeLoader.LoadWithLineCounts(archetypeId, files);
+            var (archetype, rawLineCounts) = ArchetypeLoader.LoadWithLineCounts(
+                archetypeId, files, _supportedLanguages);
             ArchetypeValidator.Validate(archetype, rawLineCounts);
 
             // Drafts are parsed and validated so broken drafts fail CI, but

@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
-using VibeGuard.Content;
 using VibeGuard.Content.Services;
 using ModelContextProtocol.Server;
 
@@ -26,19 +25,14 @@ internal static class ConsultTool
     public static ConsultToolResponse Run(
         IConsultationService service,
         [Description("Archetype identifier, e.g. 'auth/password-hashing'.")] string archetype,
-        [Description("Target language. One of: csharp, python, c, go.")] string language)
+        [Description(
+            "Target language as a lowercase wire name (e.g. 'csharp', 'python', 'c', 'go', 'rust'). " +
+            "The exact set is configured on the server; an unsupported value yields an error " +
+            "that lists the currently supported languages.")] string language)
     {
-        if (!SupportedLanguageExtensions.TryParseWire(language, out var parsedLanguage))
-        {
-            return ConsultToolResponse.ErrorResponse(
-                archetype,
-                language,
-                $"language '{language}' is not supported. Expected one of: csharp, python, c, go.");
-        }
-
         try
         {
-            var result = service.Consult(archetype, parsedLanguage);
+            var result = service.Consult(archetype, language);
             return new ConsultToolResponse(
                 Archetype: result.Archetype,
                 Language: result.Language,

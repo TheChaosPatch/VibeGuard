@@ -7,7 +7,7 @@ namespace VibeGuard.Content.Services;
 /// <see cref="IArchetypeIndex"/> that owns input validation and
 /// caps result count per spec §3.1 (max 8 matches).
 /// </summary>
-public sealed class PrepService(IArchetypeIndex index) : IPrepService
+public sealed class PrepService(IArchetypeIndex index, SupportedLanguageSet languages) : IPrepService
 {
     /// <summary>Maximum allowed length for the <c>intent</c> parameter.</summary>
     public const int MaxIntentLength = 2000;
@@ -16,9 +16,10 @@ public sealed class PrepService(IArchetypeIndex index) : IPrepService
     public const int MaxResults = 8;
 
     /// <inheritdoc/>
-    public PrepResult Prep(string intent, SupportedLanguage language, string? framework)
+    public PrepResult Prep(string intent, string language, string? framework)
     {
         ArgumentNullException.ThrowIfNull(intent);
+        ArgumentNullException.ThrowIfNull(language);
 
         if (intent.Length == 0)
         {
@@ -30,6 +31,13 @@ public sealed class PrepService(IArchetypeIndex index) : IPrepService
             throw new ArgumentException(
                 $"intent must be {MaxIntentLength} characters or fewer (got {intent.Length})",
                 nameof(intent));
+        }
+
+        if (!languages.Contains(language))
+        {
+            throw new ArgumentException(
+                $"language '{language}' is not supported. Expected one of: {languages.ToSortedList()}.",
+                nameof(language));
         }
 
         // framework is accepted for forward-compatibility per spec §3.1

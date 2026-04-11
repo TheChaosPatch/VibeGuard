@@ -42,7 +42,7 @@ public class KeywordArchetypeIndexTests
             new[] { "csharp", "python" });
         var index = KeywordArchetypeIndex.Build(new[] { hashing });
 
-        var hits = index.Search("how do I hash a password", SupportedLanguage.Python, maxResults: 8);
+        var hits = index.Search("how do I hash a password", "python", maxResults: 8);
 
         hits.Should().ContainSingle()
             .Which.ArchetypeId.Should().Be("auth/password-hashing");
@@ -59,7 +59,7 @@ public class KeywordArchetypeIndexTests
             new[] { "c" });
         var index = KeywordArchetypeIndex.Build(new[] { cOnly });
 
-        var hits = index.Search("safe string buffer overflow", SupportedLanguage.Python, maxResults: 8);
+        var hits = index.Search("safe string buffer overflow", "python", maxResults: 8);
 
         hits.Should().BeEmpty();
     }
@@ -79,7 +79,7 @@ public class KeywordArchetypeIndexTests
         }
         var index = KeywordArchetypeIndex.Build(archetypes);
 
-        var hits = index.Search("password hash", SupportedLanguage.CSharp, maxResults: 5);
+        var hits = index.Search("password hash", "csharp", maxResults: 5);
 
         hits.Should().HaveCount(5);
     }

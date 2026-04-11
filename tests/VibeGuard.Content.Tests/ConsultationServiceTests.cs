@@ -11,6 +11,11 @@ namespace VibeGuard.Content.Tests;
 
 public class ConsultationServiceTests
 {
+    private static readonly SupportedLanguageSet DefaultLanguages = SupportedLanguageSet.Default();
+
+    private static ConsultationService BuildService(params Archetype[] archetypes)
+        => new(KeywordArchetypeIndex.Build(archetypes), DefaultLanguages);
+
     private static Archetype Make(
         string id,
         string[] appliesTo,
@@ -55,7 +60,7 @@ public class ConsultationServiceTests
     [Fact]
     public void Consult_ValidArchetypeAndLanguage_ComposesPrinciplesAndLanguageBody()
     {
-        var archetype = Make(
+        var service = BuildService(Make(
             "auth/password-hashing",
             appliesTo: new[] { "csharp", "python" },
             languageFiles: new[] { ("python", "PYTHON_BODY") },
@@ -65,11 +70,9 @@ public class ConsultationServiceTests
             {
                 ["owasp_asvs"] = "V2.4",
                 ["cwe"] = "916"
-            });
-        var index = KeywordArchetypeIndex.Build(new[] { archetype });
-        var service = new ConsultationService(index);
+            }));
 
-        var result = service.Consult("auth/password-hashing", SupportedLanguage.Python);
+        var result = service.Consult("auth/password-hashing", "python");
 
         result.NotFound.Should().BeFalse();
         result.Redirect.Should().BeFalse();
@@ -81,18 +84,16 @@ public class ConsultationServiceTests
     [Fact]
     public void Consult_LanguageNotInAppliesTo_WithEquivalent_ReturnsRedirect()
     {
-        var archetype = Make(
+        var service = BuildService(Make(
             "memory/safe-string-handling",
             appliesTo: new[] { "c" },
             languageFiles: new[] { ("c", "C_BODY") },
             equivalentsIn: new Dictionary<string, string>
             {
                 ["python"] = "io/input-validation"
-            });
-        var index = KeywordArchetypeIndex.Build(new[] { archetype });
-        var service = new ConsultationService(index);
+            }));
 
-        var result = service.Consult("memory/safe-string-handling", SupportedLanguage.Python);
+        var result = service.Consult("memory/safe-string-handling", "python");
 
         result.Redirect.Should().BeTrue();
         result.NotFound.Should().BeFalse();
@@ -106,14 +107,12 @@ public class ConsultationServiceTests
     [Fact]
     public void Consult_LanguageNotInAppliesTo_WithoutEquivalent_ReturnsGenericRedirect()
     {
-        var archetype = Make(
+        var service = BuildService(Make(
             "memory/safe-string-handling",
             appliesTo: new[] { "c" },
-            languageFiles: new[] { ("c", "C_BODY") });
-        var index = KeywordArchetypeIndex.Build(new[] { archetype });
-        var service = new ConsultationService(index);
+            languageFiles: new[] { ("c", "C_BODY") }));
 
-        var result = service.Consult("memory/safe-string-handling", SupportedLanguage.Python);
+        var result = service.Consult("memory/safe-string-handling", "python");
 
         result.Redirect.Should().BeTrue();
         result.Suggested.Should().BeEmpty();
@@ -126,10 +125,9 @@ public class ConsultationServiceTests
     [Fact]
     public void Consult_UnknownArchetype_ReturnsNotFound()
     {
-        var index = KeywordArchetypeIndex.Build(Array.Empty<Archetype>());
-        var service = new ConsultationService(index);
+        var service = BuildService();
 
-        var result = service.Consult("nope/nope", SupportedLanguage.CSharp);
+        var result = service.Consult("nope/nope", "csharp");
 
         result.NotFound.Should().BeTrue();
         result.Redirect.Should().BeFalse();
@@ -140,13 +138,27 @@ public class ConsultationServiceTests
     [Fact]
     public void Consult_InvalidArchetypeId_Throws()
     {
-        var service = new ConsultationService(
-            KeywordArchetypeIndex.Build(Array.Empty<Archetype>()));
+        var service = BuildService();
 
-        var act = () => service.Consult("../../etc/passwd", SupportedLanguage.CSharp);
+        var act = () => service.Consult("../../etc/passwd", "csharp");
 
         act.Should().Throw<ArgumentException>()
            .WithMessage("*not a valid identifier*");
+    }
+
+    [Fact]
+    public void Consult_UnsupportedLanguage_Throws()
+    {
+        var service = BuildService(Make(
+            "auth/password-hashing",
+            appliesTo: new[] { "csharp" },
+            languageFiles: new[] { ("csharp", "CSHARP_BODY") }));
+
+        var act = () => service.Consult("auth/password-hashing", "klingon");
+
+        act.Should().Throw<ArgumentException>()
+           .WithMessage("*'klingon'*not supported*")
+           .And.Message.Should().Contain("csharp");
     }
 
     [Fact]
@@ -183,10 +195,11 @@ public class ConsultationServiceTests
                     },
                     "CSHARP_BODY"),
             });
-        var index = KeywordArchetypeIndex.Build(new[] { archetype });
-        var service = new ConsultationService(index);
+        var service = new ConsultationService(
+            KeywordArchetypeIndex.Build(new[] { archetype }),
+            DefaultLanguages);
 
-        var result = service.Consult("auth/legacy-password-hashing", SupportedLanguage.CSharp);
+        var result = service.Consult("auth/legacy-password-hashing", "csharp");
 
         result.NotFound.Should().BeFalse();
         result.Redirect.Should().BeFalse();
@@ -201,14 +214,12 @@ public class ConsultationServiceTests
     [Fact]
     public void Consult_StableArchetype_DoesNotPrependDeprecationBanner()
     {
-        var archetype = Make(
+        var service = BuildService(Make(
             "auth/password-hashing",
             appliesTo: new[] { "csharp" },
-            languageFiles: new[] { ("csharp", "CSHARP_BODY") });
-        var index = KeywordArchetypeIndex.Build(new[] { archetype });
-        var service = new ConsultationService(index);
+            languageFiles: new[] { ("csharp", "CSHARP_BODY") }));
 
-        var result = service.Consult("auth/password-hashing", SupportedLanguage.CSharp);
+        var result = service.Consult("auth/password-hashing", "csharp");
 
         result.Content.Should().NotBeNull();
         result.Content!.Should().NotContain("DEPRECATED");
@@ -217,14 +228,12 @@ public class ConsultationServiceTests
     [Fact]
     public void Consult_AppliesToListsLanguageButFileMissing_ReturnsNotFoundWithDisconnectMessage()
     {
-        var archetype = Make(
+        var service = BuildService(Make(
             "memory/safe-string-handling",
             appliesTo: new[] { "c", "python" },
-            languageFiles: new[] { ("c", "C_BODY") });
-        var index = KeywordArchetypeIndex.Build(new[] { archetype });
-        var service = new ConsultationService(index);
+            languageFiles: new[] { ("c", "C_BODY") }));
 
-        var result = service.Consult("memory/safe-string-handling", SupportedLanguage.Python);
+        var result = service.Consult("memory/safe-string-handling", "python");
 
         result.NotFound.Should().BeTrue();
         result.Redirect.Should().BeFalse();

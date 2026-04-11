@@ -12,10 +12,14 @@ public interface IPrepService
     /// <param name="intent">
     /// The developer's stated coding intent. Must be 1–2000 characters.
     /// </param>
-    /// <param name="language">The target programming language.</param>
+    /// <param name="language">
+    /// The target programming language as a wire-form identifier
+    /// (e.g. <c>"python"</c>, <c>"rust"</c>). Must be a member of the
+    /// configured <see cref="SupportedLanguageSet"/>.
+    /// </param>
     /// <param name="framework">
     /// Optional framework hint. Accepted for forward-compatibility but
     /// not used for filtering in MVP per spec §3.1.
     /// </param>
-    PrepResult Prep(string intent, SupportedLanguage language, string? framework);
+    PrepResult Prep(string intent, string language, string? framework);
 }

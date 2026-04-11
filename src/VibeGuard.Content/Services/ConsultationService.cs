@@ -12,7 +12,9 @@ namespace VibeGuard.Content.Services;
 /// three response shapes: normal composition, unsupported-language
 /// redirect, or archetype-not-found.
 /// </summary>
-public sealed partial class ConsultationService(IArchetypeIndex index) : IConsultationService
+public sealed partial class ConsultationService(
+    IArchetypeIndex index,
+    SupportedLanguageSet languages) : IConsultationService
 {
     /// <summary>
     /// Separator inserted between the principles body and the language-specific
@@ -41,32 +43,33 @@ public sealed partial class ConsultationService(IArchetypeIndex index) : IConsul
     private static partial Regex ArchetypeIdRegex();
 
     /// <inheritdoc/>
-    public ConsultResult Consult(string archetypeId, SupportedLanguage language)
+    public ConsultResult Consult(string archetypeId, string language)
     {
+        ArgumentNullException.ThrowIfNull(language);
         ValidateArchetypeId(archetypeId);
+        ValidateLanguage(language);
 
-        var wireLanguage = language.ToWireString();
         var archetype = index.GetById(archetypeId);
 
         if (archetype is null)
         {
-            return NotFound(archetypeId, wireLanguage);
+            return NotFound(archetypeId, language);
         }
 
         var appliesToLanguage = archetype.Principles.AppliesTo
-            .Contains(wireLanguage, StringComparer.Ordinal);
+            .Contains(language, StringComparer.Ordinal);
 
         if (!appliesToLanguage)
         {
-            return Redirect(archetype, wireLanguage);
+            return Redirect(archetype, language);
         }
 
-        if (!archetype.LanguageFiles.TryGetValue(wireLanguage, out var languageFile))
+        if (!archetype.LanguageFiles.TryGetValue(language, out var languageFile))
         {
-            return MissingLanguageFile(archetypeId, wireLanguage);
+            return MissingLanguageFile(archetypeId, language);
         }
 
-        return NormalComposition(archetype, wireLanguage, languageFile);
+        return NormalComposition(archetype, language, languageFile);
     }
 
     private static void ValidateArchetypeId(string archetypeId)
@@ -79,6 +82,16 @@ public sealed partial class ConsultationService(IArchetypeIndex index) : IConsul
                 $"'{archetypeId}' is not a valid identifier. " +
                 "Archetype IDs must match ^[a-z0-9\\-]+(/[a-z0-9\\-]+)*$.",
                 nameof(archetypeId));
+        }
+    }
+
+    private void ValidateLanguage(string language)
+    {
+        if (!languages.Contains(language))
+        {
+            throw new ArgumentException(
+                $"language '{language}' is not supported. Expected one of: {languages.ToSortedList()}.",
+                nameof(language));
         }
     }
 

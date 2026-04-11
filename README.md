@@ -73,7 +73,7 @@ The LLM calls this **before** writing any non-trivial code, passing a free-text 
 | Parameter   | Type     | Required | Description                                                    |
 |-------------|----------|----------|----------------------------------------------------------------|
 | `intent`    | string   | yes      | Free-text description of what the LLM is about to write. ≤ 2000 chars. |
-| `language`  | string   | yes      | One of: `csharp`, `python`, `c`, `go`.                          |
+| `language`  | string   | yes      | Lowercase wire name of the target language. The default server set is `csharp`, `python`, `c`, `go`, `rust`; operators can override the set via `VIBEGUARD_SUPPORTED_LANGUAGES` or `appsettings.json`. An unsupported value yields an error that lists the currently configured set. |
 | `framework` | string   | no       | Optional framework hint. Accepted for forward compatibility; not used for filtering in the MVP. |
 
 Response shape:
@@ -99,7 +99,7 @@ Fetches the full guidance document for one archetype. Called by the LLM after `p
 | Parameter   | Type   | Required | Description                                             |
 |-------------|--------|----------|---------------------------------------------------------|
 | `archetype` | string | yes      | Archetype identifier, e.g. `auth/password-hashing`.     |
-| `language`  | string | yes      | One of: `csharp`, `python`, `c`, `go`.                   |
+| `language`  | string | yes      | Lowercase wire name of the target language. Must be in the server's configured supported-language set (defaults: `csharp`, `python`, `c`, `go`, `rust`). |
 
 Response shape:
 
@@ -373,7 +373,7 @@ The MVP ships **three stable archetypes** that LLM clients see by default, plus 
 | `io/unsafe-deserialization`           | `csharp`, `python`    |
 | `logging/sensitive-data`              | `csharp`, `python`    |
 | `persistence/secrets-handling`        | `csharp`, `python`    |
-| `persistence/sql-injection`           | `csharp`, `python`    |
+| `persistence/sql-injection`           | `csharp`, `python`, `rust` |
 
 Every archetype ships a `_principles.md` file (universal architectural guidance, references to OWASP ASVS / cheat sheets / CWE) plus one markdown file per supported language. Adding a language file to an existing archetype is usually the easiest first contribution — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -418,18 +418,34 @@ The server resolves the archetype root with the following precedence (first matc
 2. **`appsettings.json`** key `VibeGuard:ArchetypesRoot` — absolute, or relative to the executable.
 3. **Default** — `archetypes/` next to the executable (where `dotnet build` copies the corpus).
 
+### Supported languages
+
+The set of languages VibeGuard will accept on `prep` and `consult` is configurable. The default set — `csharp`, `python`, `c`, `go`, `rust` — is what ships, but an operator can narrow it, widen it, or swap entries without recompiling the server. Resolution precedence (first match wins):
+
+1. **Environment variable** `VIBEGUARD_SUPPORTED_LANGUAGES` — a comma-separated list of lowercase wire names (e.g. `csharp,python,rust`). Whitespace around commas is trimmed.
+2. **`appsettings.json`** key `VibeGuard:SupportedLanguages` — a JSON string array.
+3. **Default** — `csharp, python, c, go, rust`.
+
+Wire names must match `^[a-z][a-z0-9\-]*$` — lowercase ASCII, may contain digits and hyphens, must start with a letter, up to 32 characters. Duplicates are collapsed. An empty or malformed set fails startup with a diagnostic on stderr.
+
+The configured set is the allowlist that the archetype loader enforces. At load time, every `applies_to` entry in a principles file and every language-filename stem (e.g. the `rust` in `rust.md`) must be in the configured set; anything else fails the load. This means narrowing the set on a given deployment will reject archetypes that claim support for languages you have excluded, rather than silently skipping them.
+
+Adding a language to a VibeGuard deployment is therefore a content decision, not a code decision: extend the configured set, ship the corresponding language files in the corpus, and the server accepts them on the next startup.
+
 ### Lifecycle filter
 
 | Variable                   | Default  | Effect                                                                                             |
 |----------------------------|----------|----------------------------------------------------------------------------------------------------|
 | `VIBEGUARD_INCLUDE_DRAFTS` | *(unset)* | Drafts are parsed and validated but hidden from the active corpus. Set to any non-empty value to include drafts in `prep` results and make them resolvable via `consult`. Intended for local content development, not production. |
+| `VIBEGUARD_SUPPORTED_LANGUAGES` | *(unset)* | Comma-separated list of lowercase wire names that overrides the default supported-language set. See [Supported languages](#supported-languages). |
 
 Example `appsettings.json`:
 
 ```json
 {
   "VibeGuard": {
-    "ArchetypesRoot": "/opt/vibeguard/archetypes"
+    "ArchetypesRoot": "/opt/vibeguard/archetypes",
+    "SupportedLanguages": ["csharp", "python", "rust"]
   }
 }
 ```
@@ -454,8 +470,8 @@ VibeGuard refuses to start with a broken corpus. The stderr diagnostic includes 
 **"`prep` returns no matches for an intent that should match."**
 The MVP scorer is a keyword index, not an embedding model. It matches when the intent string contains words listed in the archetype's `keywords:` frontmatter or in the title/summary. If a reasonable intent returns nothing, the archetype's `keywords:` list is probably too narrow — file an issue or open a PR that adds the missing terms.
 
-**`language 'java' is not supported`.**
-The MVP ships four languages: `csharp`, `python`, `c`, `go`. Others are on the roadmap — adding a language is mostly a content task, not a code task.
+**`language '<x>' is not supported. Expected one of: ...`.**
+The language set is configurable. By default it is `csharp`, `python`, `c`, `go`, `rust` — the error message lists whichever set the running server was configured with, so a deployment that narrowed it will say so. To add a language, extend the set via `VIBEGUARD_SUPPORTED_LANGUAGES` or `VibeGuard:SupportedLanguages` in `appsettings.json`, ship the matching language files in the corpus, and restart the server. See [Configuration reference — Supported languages](#supported-languages).
 
 **Build errors about `net10.0` not being a valid target framework.**
 You need the .NET 10 SDK. `dotnet --list-sdks` should include a 10.x entry.
@@ -465,7 +481,7 @@ You need the .NET 10 SDK. `dotnet --list-sdks` should include a 10.x entry.
 The MVP proves the shape. The next steps are about growing the content and widening the supported targets.
 
 - **Corpus expansion** — more archetypes: `auth/session-tokens`, `auth/api-endpoint-authentication`, `persistence/sql-access`, `persistence/secrets-handling`, `io/path-traversal`, `io/deserialization`, `net/ssrf`, `net/tls-config`, `concurrency/shared-state`, `logging/structured-logging`, and a long tail of topics the community cares about. This is the most load-bearing roadmap item — VibeGuard's value scales with corpus depth.
-- **More languages** — JavaScript/TypeScript, Java, Rust are the obvious next targets. Each is a content PR, not a code PR.
+- **More languages** — Rust is in the default set as of v0.3.0. The obvious next targets are JavaScript/TypeScript, Java, Kotlin, and Swift. Adding a language is a content PR plus (optionally) a one-line config change to extend `VIBEGUARD_SUPPORTED_LANGUAGES`; the server itself has no enum to edit.
 - **Smarter prep scoring** — optional embedding-based retrieval as a sibling of the keyword scorer, gated behind a config flag so the deterministic path remains the default.
 - **Framework awareness** — the `framework` parameter on `prep` is already accepted on the wire; activating it means adding per-framework sub-files or frontmatter.
 - **Content review tooling** — a lightweight linter for PRs that runs the same validator the server runs at startup, so contributors see errors before pushing.

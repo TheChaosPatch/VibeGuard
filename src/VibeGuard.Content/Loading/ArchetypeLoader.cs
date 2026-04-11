@@ -7,8 +7,11 @@ namespace VibeGuard.Content.Loading;
 /// directory becomes one <see cref="Archetype"/> aggregate. Performs
 /// cross-file consistency checks (principles file must exist, archetype
 /// IDs must match directory and frontmatter, language filenames must
-/// match their frontmatter language). Does no filesystem I/O of its own —
-/// that belongs to <c>FileSystemArchetypeRepository</c>.
+/// match their frontmatter language) and enforces that every language
+/// touched by the archetype — whether via filename or <c>applies_to</c>
+/// — is a member of the configured <see cref="SupportedLanguageSet"/>.
+/// Does no filesystem I/O of its own — that belongs to
+/// <c>FileSystemArchetypeRepository</c>.
 /// </summary>
 public static class ArchetypeLoader
 {
@@ -17,13 +20,15 @@ public static class ArchetypeLoader
 
     public static Archetype Load(
         string expectedArchetypeId,
-        IReadOnlyDictionary<string, string> filesInDirectory)
+        IReadOnlyDictionary<string, string> filesInDirectory,
+        SupportedLanguageSet supportedLanguages)
     {
         ArgumentNullException.ThrowIfNull(expectedArchetypeId);
         ArgumentNullException.ThrowIfNull(filesInDirectory);
+        ArgumentNullException.ThrowIfNull(supportedLanguages);
 
-        var principles = LoadPrinciples(expectedArchetypeId, filesInDirectory);
-        var languageFiles = LoadLanguageFiles(expectedArchetypeId, filesInDirectory);
+        var principles = LoadPrinciples(expectedArchetypeId, filesInDirectory, supportedLanguages);
+        var languageFiles = LoadLanguageFiles(expectedArchetypeId, filesInDirectory, supportedLanguages);
 
         return new Archetype(
             Id: expectedArchetypeId,
@@ -39,12 +44,14 @@ public static class ArchetypeLoader
     /// </summary>
     public static (Archetype Archetype, FrozenDictionary<string, int> RawLineCounts) LoadWithLineCounts(
         string expectedArchetypeId,
-        IReadOnlyDictionary<string, string> filesInDirectory)
+        IReadOnlyDictionary<string, string> filesInDirectory,
+        SupportedLanguageSet supportedLanguages)
     {
         ArgumentNullException.ThrowIfNull(expectedArchetypeId);
         ArgumentNullException.ThrowIfNull(filesInDirectory);
+        ArgumentNullException.ThrowIfNull(supportedLanguages);
 
-        var archetype = Load(expectedArchetypeId, filesInDirectory);
+        var archetype = Load(expectedArchetypeId, filesInDirectory, supportedLanguages);
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var (filename, content) in filesInDirectory)
         {
@@ -67,7 +74,8 @@ public static class ArchetypeLoader
 
     private static ParseResult<PrinciplesFrontmatter> LoadPrinciples(
         string expectedArchetypeId,
-        IReadOnlyDictionary<string, string> filesInDirectory)
+        IReadOnlyDictionary<string, string> filesInDirectory,
+        SupportedLanguageSet supportedLanguages)
     {
         if (!filesInDirectory.TryGetValue(PrinciplesFilename, out var principlesContent))
         {
@@ -84,12 +92,27 @@ public static class ArchetypeLoader
                 $"'{parsed.Frontmatter.Archetype}', expected '{expectedArchetypeId}'");
         }
 
+        // Reject any applies_to entry that is not in the configured set.
+        // Closing this at load time means `applies_to: [klingon]` fails
+        // startup with a clear diagnostic instead of silently passing
+        // validation and mysteriously returning nothing at query time.
+        foreach (var declared in parsed.Frontmatter.AppliesTo)
+        {
+            if (!supportedLanguages.Contains(declared))
+            {
+                throw new ArchetypeLoadException(
+                    $"archetype '{expectedArchetypeId}': applies_to entry '{declared}' " +
+                    $"is not a supported language (expected one of: {supportedLanguages.ToSortedList()})");
+            }
+        }
+
         return parsed;
     }
 
     private static FrozenDictionary<string, LanguageFile> LoadLanguageFiles(
         string expectedArchetypeId,
-        IReadOnlyDictionary<string, string> filesInDirectory)
+        IReadOnlyDictionary<string, string> filesInDirectory,
+        SupportedLanguageSet supportedLanguages)
     {
         var languageFiles = new Dictionary<string, LanguageFile>(StringComparer.Ordinal);
 
@@ -104,6 +127,15 @@ public static class ArchetypeLoader
             }
 
             var languageFromFilename = Path.GetFileNameWithoutExtension(filename);
+
+            if (!supportedLanguages.Contains(languageFromFilename))
+            {
+                throw new ArchetypeLoadException(
+                    $"archetype '{expectedArchetypeId}': file '{filename}' declares language " +
+                    $"'{languageFromFilename}' which is not supported " +
+                    $"(expected one of: {supportedLanguages.ToSortedList()})");
+            }
+
             var parsed = FrontmatterParser.ParseLanguage(content);
 
             if (!string.Equals(parsed.Frontmatter.Language, languageFromFilename, StringComparison.Ordinal))
@@ -130,7 +162,8 @@ public static class ArchetypeLoader
 /// <summary>
 /// Thrown when an archetype directory's contents fail cross-file
 /// consistency checks (missing principles, mismatched archetype IDs,
-/// filename/frontmatter language disagreement, or stray non-markdown files).
+/// filename/frontmatter language disagreement, unsupported language,
+/// or stray non-markdown files).
 /// </summary>
 public sealed class ArchetypeLoadException : Exception
 {

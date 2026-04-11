@@ -54,8 +54,9 @@ public sealed class KeywordArchetypeIndex : IArchetypeIndex
     public IReadOnlyList<string> GetReverseRelated(string archetypeId)
         => _reverseRelated.TryGetValue(archetypeId, out var list) ? list : ImmutableArray<string>.Empty;
 
-    public IReadOnlyList<PrepMatch> Search(string intent, SupportedLanguage language, int maxResults)
+    public IReadOnlyList<PrepMatch> Search(string intent, string language, int maxResults)
     {
+        ArgumentNullException.ThrowIfNull(language);
         if (maxResults <= 0) return Array.Empty<PrepMatch>();
         var tokens = Tokenize(intent);
         if (tokens.Count == 0) return Array.Empty<PrepMatch>();
@@ -64,14 +65,13 @@ public sealed class KeywordArchetypeIndex : IArchetypeIndex
         AccumulateKeywordScores(tokens, scores);
         AccumulateTitleSummaryBonus(tokens, scores);
 
-        var wire = language.ToWireString();
         var divisor = tokens.Count * 1.5;
         var hits = new List<PrepMatch>(scores.Count);
         foreach (var (id, raw) in scores)
         {
             if (raw <= 0) continue;
             var archetype = _byId[id];
-            if (!archetype.Principles.AppliesTo.Contains(wire, StringComparer.Ordinal)) continue;
+            if (!archetype.Principles.AppliesTo.Contains(language, StringComparer.Ordinal)) continue;
             var normalized = Math.Min(1.0, raw / divisor);
             hits.Add(new PrepMatch(id, archetype.Principles.Title, archetype.Principles.Summary, normalized));
         }
