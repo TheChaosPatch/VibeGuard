@@ -4,27 +4,57 @@
 
 **Goal:** Build an MCP stdio server in C# 14 / .NET 10 that serves human-authored, per-archetype engineering guidance (`prep` and `consult` tools), backed by a validated, keyword-indexed markdown corpus with 3 smoke-test archetypes.
 
-**Architecture:** Three-project solution — `GuardCode.Mcp` (executable, composition root, MCP tool handlers), `GuardCode.Content` (domain, loading, indexing, services), `GuardCode.Content.Tests` (xUnit + FluentAssertions). Content lives in a sibling `archetypes/` directory as plain markdown with YAML frontmatter. All content is eager-loaded and validated at startup; request-path is pure in-memory lookup.
+**Architecture:** Three-project solution — `GuardCode.Mcp` (executable, composition root, MCP tool handlers), `GuardCode.Content` (domain, loading, indexing, services), `GuardCode.Content.Tests` (xUnit + AwesomeAssertions). Content lives in a sibling `archetypes/` directory as plain markdown with YAML frontmatter. All content is eager-loaded and validated at startup; request-path is pure in-memory lookup.
 
-**Tech Stack:** C# 14, .NET 10, `ModelContextProtocol` NuGet SDK (Microsoft), `YamlDotNet` (strict typed deserializer), `Microsoft.Extensions.Hosting`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Logging`, xUnit, FluentAssertions.
+**Tech Stack:** C# 14, .NET 10, `ModelContextProtocol` (official MCP C# SDK, Microsoft-co-maintained), `YamlDotNet` (strict typed deserializer), `Microsoft.Extensions.Hosting`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Logging`, `xunit.v3`, `AwesomeAssertions`. Solution file uses the new `.slnx` format (XML-based, default in .NET 10 SDK).
 
 **Design source:** `docs/superpowers/specs/2026-04-11-guardcode-design.md` — read §3 (MCP contract), §4 (content schema), §5 (architecture), §6 (security) before starting.
 
 **Working directory for all commands:** `F:\repositories\SecureCodingMcp` (use forward slashes in bash: `F:/repositories/SecureCodingMcp`).
 
-**Pinned versions (use these, not latest):**
+**NuGet policy — use the latest stable version at implementation time, managed centrally:**
 
-- `ModelContextProtocol` — 0.3.0-preview.3 (Microsoft-maintained MCP SDK; verify the latest stable preview at implementation time and pin; do not use `*`)
-- `YamlDotNet` — 16.2.1
-- `Microsoft.Extensions.Hosting` — 10.0.0
-- `Microsoft.Extensions.Logging.Console` — 10.0.0
-- `xunit` — 2.9.2
-- `xunit.runner.visualstudio` — 2.9.2
-- `FluentAssertions` — 7.0.0
-- `Microsoft.NET.Test.Sdk` — 17.12.0
-- `Microsoft.CodeAnalysis.NetAnalyzers` — 9.0.0
+All NuGet versions live in `Directory.Packages.props` at the repo root (Central Package Management, `ManagePackageVersionsCentrally=true`). The three csproj files reference package IDs **without** version attributes. To bump a dependency, edit one file.
 
-If any pinned package does not exist for .NET 10 at implementation time, use the latest stable version that targets `net10.0` and update this header — do **not** silently drift.
+Do **not** pin older versions. For every package below, take whatever `dotnet package search <id>` reports as the current stable release (or the latest preview if the package has no stable line yet). For reference, these were the latest stable versions at the time the plan was written (2026-04-11):
+
+- `ModelContextProtocol` — 1.2.0 (official MCP C# SDK — owner `ModelContextProtocol` on nuget.org, repo `modelcontextprotocol/csharp-sdk`; this is the canonical Microsoft-co-maintained package — do NOT substitute community forks like `MCPSharp` or `mcpdotnet`)
+- `YamlDotNet` — 17.0.1
+- `Microsoft.Extensions.Hosting` — 10.0.5
+- `Microsoft.Extensions.Logging.Console` — 10.0.5
+- `xunit.v3` — 3.2.2 (use xunit v3, not v2)
+- `xunit.runner.visualstudio` — 3.1.5
+- `AwesomeAssertions` — 9.4.0 (Apache-2.0 community fork of FluentAssertions 7.x; used instead of `FluentAssertions` because FluentAssertions 8+ became commercial under Xceed — incompatible with GuardCode's MIT-for-free-adoption goal)
+- `Microsoft.NET.Test.Sdk` — 18.4.0
+- `Microsoft.CodeAnalysis.NetAnalyzers` — 10.0.201
+
+If a newer stable exists at implementation time, **use it**. If a later `ModelContextProtocol` version introduces a breaking API change, adapt the code — don't downgrade the package to match stale example code in this plan.
+
+**Design principles (enforced, not aspirational):**
+
+These are the rules of the road. Every task below complies with them; deviations from them in a review are changes, not observations.
+
+1. **Layered sub-namespaces — layer N depends only on layers 0..N−1.** GuardCode's layers are:
+   - Layer 0: **Domain** — `GuardCode.Content` root (`SupportedLanguage`, `Archetype`, `PrinciplesFrontmatter`, `LanguageFrontmatter`, `LanguageFile`)
+   - Layer 1: **Loading** — `GuardCode.Content.Loading` (parsing, reading, path-traversal defense)
+   - Layer 2: **Validation** — `GuardCode.Content.Validation`
+   - Layer 3: **Indexing** — `GuardCode.Content.Indexing`
+   - Layer 4: **Services** — `GuardCode.Content.Services`
+   - Layer 5: **MCP tool handlers** — `GuardCode.Mcp.Tools`
+   - Layer 6: **Composition root / host** — `GuardCode.Mcp.Program`
+   A file in Layer 3 may `using` Layers 0–2, never Layer 4+. Circular references are a bug, not a style preference.
+
+2. **Single Responsibility, measured in LOC.** Production files cap at **200 lines** (design spec §7.3). Reference-implementation function budgets cap at **40 lines**. If a file grows past the budget, it splits.
+
+3. **No static utility classes except pure-function helpers.** Every service is DI-injected through an interface. The one intentional static is `SupportedLanguageExtensions` — a pure wire-format mapper with no state and no dependencies.
+
+4. **Immutable-after-construction collections use `FrozenDictionary<K,V>` / `FrozenSet<T>`.** The keyword index, archetype-id → archetype map, and reverse `related_archetypes` index are all built once at startup and never mutated. `FrozenDictionary` expresses that intent and gives faster reads than `Dictionary`.
+
+5. **One DI extension method per library.** `GuardCode.Content` exposes `AddGuardCodeContent(this IServiceCollection, string archetypesRoot)`; `GuardCode.Mcp` composes it in `Program.cs`. No direct `services.AddSingleton<...>` calls in the host except what belongs to the host itself.
+
+(Note: `required` modifiers on frontmatter records were evaluated and deferred — YamlDotNet's reflection-based construction path interacts awkwardly with `required`, and the existing "default to empty, validate at load time" pattern produces better error messages than a runtime reflection failure. Reconsider if YamlDotNet adds first-class `required` enforcement.)
+
+These principles are informed by the Cortex Refactor1 design doc Ehab shared on 2026-04-11 (see `reference_cortex_refactor1.md` in the project memory). GuardCode deliberately does **not** adopt Cortex's "more granularity the better" rule — three projects at the right grain beats 99 projects at the wrong one.
 
 **TDD discipline:** every production file in `GuardCode.Content` is written test-first. Every task has explicit fail → implement → pass → commit steps. No batching of tests and implementation into a single commit.
 
@@ -34,7 +64,9 @@ If any pinned package does not exist for .NET 10 at implementation time, use the
 
 Files created (in order of first appearance):
 
-- `SecureCodingMcp.sln` — solution
+- `SecureCodingMcp.slnx` — solution
+- `Directory.Build.props` — target framework, language version, strict analyzers, nullable, `InvariantGlobalization`
+- `Directory.Packages.props` — Central Package Management: single source of truth for every NuGet version
 - `src/GuardCode.Content/GuardCode.Content.csproj` — class library
 - `src/GuardCode.Content/SupportedLanguage.cs` — MVP language enum
 - `src/GuardCode.Content/PrinciplesFrontmatter.cs` — typed YAML model for `_principles.md`
@@ -81,11 +113,14 @@ Files created (in order of first appearance):
 ## Task 1: Solution Scaffold
 
 **Files:**
-- Create: `SecureCodingMcp.sln`
+- Create: `SecureCodingMcp.slnx`
+- Create: `Directory.Build.props`
+- Create: `Directory.Packages.props`
 - Create: `src/GuardCode.Content/GuardCode.Content.csproj`
 - Create: `src/GuardCode.Mcp/GuardCode.Mcp.csproj`
+- Create: `src/GuardCode.Mcp/GlobalUsings.cs`
 - Create: `tests/GuardCode.Content.Tests/GuardCode.Content.Tests.csproj`
-- Create: `Directory.Build.props`
+- Create: `tests/GuardCode.Content.Tests/GlobalUsings.cs`
 
 - [ ] **Step 1: Verify .NET 10 SDK is installed**
 
@@ -99,7 +134,7 @@ Run:
 cd F:/repositories/SecureCodingMcp
 dotnet new sln -n SecureCodingMcp
 ```
-Expected: `SecureCodingMcp.sln` created at repo root. `dotnet sln list` shows no projects yet.
+Expected: `SecureCodingMcp.slnx` created at repo root. `dotnet sln list` shows no projects yet.
 
 - [ ] **Step 3: Create `Directory.Build.props` at repo root**
 
@@ -125,12 +160,57 @@ Create `F:/repositories/SecureCodingMcp/Directory.Build.props`:
 
 Rationale: centralizes target framework, C# version, nullable, and analyzer config so every project inherits the same strict baseline. `TreatWarningsAsErrors` is deliberate — a project that teaches discipline must practice it.
 
+- [ ] **Step 3a: Create `Directory.Packages.props` at repo root**
+
+Create `F:/repositories/SecureCodingMcp/Directory.Packages.props`:
+
+```xml
+<Project>
+
+  <!--
+    Central Package Management for GuardCode.
+    Every NuGet version lives here. The three csproj files reference
+    packages by ID only (no Version attribute). To update a dependency,
+    change the version in one place and rebuild.
+    Policy: always use the latest stable version.
+    Versions below were current at 2026-04-11; bump freely.
+  -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- GuardCode.Content -->
+    <PackageVersion Include="YamlDotNet" Version="17.0.1" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.201" />
+
+    <!-- GuardCode.Mcp -->
+    <PackageVersion Include="ModelContextProtocol" Version="1.2.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.5" />
+
+    <!-- GuardCode.Content.Tests -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="AwesomeAssertions" Version="9.4.0" />
+  </ItemGroup>
+
+</Project>
+```
+
+Rationale: Central Package Management (CPM) gives one file to edit when a dependency moves. With `ManagePackageVersionsCentrally=true`, csproj files must reference packages **without** a `Version` attribute — that's what the next three steps do. `CentralPackageTransitivePinningEnabled=true` also prevents transitive versions from drifting silently.
+
+Do not put `--` inside the XML comment block — XML does not allow `--` inside comments.
+
 - [ ] **Step 4: Create the content class library**
 
 Run:
 ```bash
 dotnet new classlib -n GuardCode.Content -o src/GuardCode.Content --framework net10.0
-dotnet sln SecureCodingMcp.sln add src/GuardCode.Content/GuardCode.Content.csproj
+dotnet sln SecureCodingMcp.slnx add src/GuardCode.Content/GuardCode.Content.csproj
 ```
 
 Then overwrite `src/GuardCode.Content/GuardCode.Content.csproj` with:
@@ -143,14 +223,16 @@ Then overwrite `src/GuardCode.Content/GuardCode.Content.csproj` with:
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="YamlDotNet" Version="16.2.1" />
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0">
+    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
 </Project>
 ```
+
+(No `Version="..."` attributes — versions come from `Directory.Packages.props`. If a reference here carries a version, restore will fail with `NU1008`.)
 
 Also delete the template file that classlib creates:
 ```bash
@@ -162,7 +244,7 @@ rm src/GuardCode.Content/Class1.cs
 Run:
 ```bash
 dotnet new console -n GuardCode.Mcp -o src/GuardCode.Mcp --framework net10.0
-dotnet sln SecureCodingMcp.sln add src/GuardCode.Mcp/GuardCode.Mcp.csproj
+dotnet sln SecureCodingMcp.slnx add src/GuardCode.Mcp/GuardCode.Mcp.csproj
 ```
 
 Then overwrite `src/GuardCode.Mcp/GuardCode.Mcp.csproj` with:
@@ -179,14 +261,14 @@ Then overwrite `src/GuardCode.Mcp/GuardCode.Mcp.csproj` with:
     <ProjectReference Include="..\GuardCode.Content\GuardCode.Content.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.3" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
 </Project>
 ```
 
-(`AssemblyName` produces the `guardcode-mcp` binary per spec §0 naming.) Overwrite the default `Program.cs` with a stub we'll replace in Task 11:
+(`ModelContextProtocol` is the official MCP C# SDK — owner `ModelContextProtocol` on nuget.org, repo `modelcontextprotocol/csharp-sdk`, co-maintained with Microsoft. `AssemblyName` produces the `guardcode-mcp` binary per spec §0 naming. Versions come from `Directory.Packages.props`.) Overwrite the default `Program.cs` with a stub we'll replace in Task 11:
 
 ```csharp
 // Placeholder — replaced in Task 11 (composition root).
@@ -194,12 +276,27 @@ System.Console.Error.WriteLine("guardcode-mcp: composition root not yet implemen
 return 1;
 ```
 
+Also create `src/GuardCode.Mcp/GlobalUsings.cs`:
+
+```csharp
+// Host-project global usings.
+// GuardCode.Mcp is a generic-host MCP server: DI, hosting, and logging
+// appear in nearly every file, so they're hoisted here. Keep this list
+// tight — if a using is only touched by one or two files, it belongs
+// in those files, not here.
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Hosting;
+global using Microsoft.Extensions.Logging;
+```
+
+Later Task 10 and Task 11 code examples omit these three `using` lines — they're provided globally. If you paste plan code verbatim and get a CS0105 "duplicate using directive" error, drop the redundant line, don't add a `#pragma`.
+
 - [ ] **Step 6: Create the test project**
 
 Run:
 ```bash
 dotnet new xunit -n GuardCode.Content.Tests -o tests/GuardCode.Content.Tests --framework net10.0
-dotnet sln SecureCodingMcp.sln add tests/GuardCode.Content.Tests/GuardCode.Content.Tests.csproj
+dotnet sln SecureCodingMcp.slnx add tests/GuardCode.Content.Tests/GuardCode.Content.Tests.csproj
 ```
 
 Then overwrite `tests/GuardCode.Content.Tests/GuardCode.Content.Tests.csproj` with:
@@ -216,16 +313,31 @@ Then overwrite `tests/GuardCode.Content.Tests/GuardCode.Content.Tests.csproj` wi
     <ProjectReference Include="..\..\src\GuardCode.Content\GuardCode.Content.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.9.2">
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="FluentAssertions" Version="7.0.0" />
+    <PackageReference Include="AwesomeAssertions" />
   </ItemGroup>
 </Project>
 ```
+
+(Use `xunit.v3`, not the legacy `xunit` v2 package. `AwesomeAssertions` is the Apache-2.0 community fork of FluentAssertions 7 — FluentAssertions 8+ is under a commercial Xceed license and must NOT be used here: GuardCode is MIT-licensed for free adoption by LLM toolmakers, and a commercial test dependency would poison that. Versions come from `Directory.Packages.props`.)
+
+Also create `tests/GuardCode.Content.Tests/GlobalUsings.cs`:
+
+```csharp
+// Test-project global usings.
+// Every test file leans on these — hoisting them keeps per-file headers to
+// what's *specific* about that test (the subsystem under test, helper
+// namespaces, etc.).
+global using Xunit;
+global using AwesomeAssertions;
+```
+
+Every test-file code example in later tasks omits `using Xunit;` and `using AwesomeAssertions;` — they're global. Keep sub-namespace imports (`using GuardCode.Content.Loading;` etc.) explicit per test file; globalizing every sub-namespace hides which subsystem a test actually targets.
 
 Delete the `xunit`-template `UnitTest1.cs`:
 ```bash
@@ -236,25 +348,27 @@ rm tests/GuardCode.Content.Tests/UnitTest1.cs
 
 Run:
 ```bash
-dotnet restore SecureCodingMcp.sln
-dotnet build SecureCodingMcp.sln -c Debug
+dotnet restore SecureCodingMcp.slnx
+dotnet build SecureCodingMcp.slnx -c Debug
 ```
 Expected: `Build succeeded. 0 Warning(s) 0 Error(s)`. The content library is empty, the MCP exe has only a 2-line stub, and the test project has no tests. The build must pass cleanly.
 
-If the `ModelContextProtocol` preview version does not resolve, update the version in `GuardCode.Mcp.csproj` to the latest stable preview published to nuget.org (check https://www.nuget.org/packages/ModelContextProtocol) and update this plan header with the real version, then re-run restore + build.
+If any package version fails to resolve, check https://www.nuget.org/packages/<package-id> for the current latest and use that — do not downgrade, and do not add a floating `*` version. Update the plan header's reference list if you take a newer version than the one noted there.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add SecureCodingMcp.sln Directory.Build.props src/GuardCode.Content/ src/GuardCode.Mcp/ tests/GuardCode.Content.Tests/
-git commit -m "scaffold: three-project solution for GuardCode MCP server
+git add SecureCodingMcp.slnx Directory.Build.props Directory.Packages.props src/GuardCode.Content/ src/GuardCode.Mcp/ tests/GuardCode.Content.Tests/
+git commit -m "scaffold: three-project .slnx solution for GuardCode MCP server
 
-Adds an empty C# 14 / .NET 10 solution with the three projects
-from the design spec (§5.1): GuardCode.Content class library,
-GuardCode.Mcp executable, and GuardCode.Content.Tests xUnit project.
-All projects inherit strict analyzer + nullable + TreatWarningsAsErrors
-settings from Directory.Build.props so the server embodies the
-discipline it teaches."
+Adds an empty C# 14 / .NET 10 solution (new .slnx format, default in
+the .NET 10 SDK) with the three projects from the design spec (§5.1):
+GuardCode.Content class library, GuardCode.Mcp executable, and
+GuardCode.Content.Tests xUnit project. All projects inherit strict
+analyzer + nullable + TreatWarningsAsErrors settings from
+Directory.Build.props so the server embodies the discipline it teaches.
+GlobalUsings.cs files hoist the host-project Microsoft.Extensions.*
+and test-project Xunit/AwesomeAssertions namespaces."
 ```
 
 ---
@@ -432,7 +546,7 @@ public sealed record Archetype(
 
 - [ ] **Step 6: Build to verify**
 
-Run: `dotnet build SecureCodingMcp.sln -c Debug`
+Run: `dotnet build SecureCodingMcp.slnx -c Debug`
 Expected: `Build succeeded. 0 Warning(s) 0 Error(s)`. If the strict analyzer set complains about any property, fix the specific complaint before committing — do not disable the analyzer globally.
 
 - [ ] **Step 7: Commit**
@@ -484,10 +598,8 @@ public sealed class FrontmatterParseException : Exception
 Create `tests/GuardCode.Content.Tests/FrontmatterParserTests.cs`:
 
 ```csharp
-using FluentAssertions;
 using GuardCode.Content;
 using GuardCode.Content.Loading;
-using Xunit;
 
 namespace GuardCode.Content.Tests;
 
@@ -748,9 +860,7 @@ Create `tests/GuardCode.Content.Tests/ArchetypeLoaderTests.cs`:
 
 ```csharp
 using System.Collections.Generic;
-using FluentAssertions;
 using GuardCode.Content.Loading;
-using Xunit;
 
 namespace GuardCode.Content.Tests;
 
@@ -1063,10 +1173,8 @@ Create `tests/GuardCode.Content.Tests/ArchetypeValidatorTests.cs`:
 
 ```csharp
 using System.Collections.Generic;
-using FluentAssertions;
 using GuardCode.Content;
 using GuardCode.Content.Validation;
-using Xunit;
 
 namespace GuardCode.Content.Tests;
 
@@ -1477,9 +1585,7 @@ Create `tests/GuardCode.Content.Tests/FileSystemArchetypeRepositoryTests.cs`:
 using System;
 using System.Collections.Generic;
 using System.IO;
-using FluentAssertions;
 using GuardCode.Content.Loading;
-using Xunit;
 
 namespace GuardCode.Content.Tests;
 
@@ -1823,10 +1929,8 @@ Create `tests/GuardCode.Content.Tests/KeywordArchetypeIndexTests.cs`:
 
 ```csharp
 using System.Collections.Generic;
-using FluentAssertions;
 using GuardCode.Content;
 using GuardCode.Content.Indexing;
-using Xunit;
 
 namespace GuardCode.Content.Tests;
 
@@ -1884,7 +1988,9 @@ Create `src/GuardCode.Content/Indexing/KeywordArchetypeIndex.cs`:
 
 ```csharp
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 
 namespace GuardCode.Content.Indexing;
@@ -1892,14 +1998,14 @@ namespace GuardCode.Content.Indexing;
 /// <summary>
 /// Deterministic keyword-based index over the archetype corpus.
 /// Built once at startup; lookups are pure reads from precomputed
-/// dictionaries. No embeddings, no fuzzy matching — design spec
-/// §10 explicitly defers those.
+/// frozen dictionaries. No embeddings, no fuzzy matching — design
+/// spec §10 explicitly defers those.
 /// </summary>
 public sealed class KeywordArchetypeIndex : IArchetypeIndex
 {
     // Tiny static stopword list — enough to drop obvious noise words
     // without requiring an external dependency or per-locale tables.
-    private static readonly HashSet<string> Stopwords = new(StringComparer.Ordinal)
+    private static readonly FrozenSet<string> Stopwords = new[]
     {
         "a", "an", "the", "and", "or", "but", "if", "then", "else",
         "of", "in", "on", "at", "to", "for", "with", "from", "by",
@@ -1908,16 +2014,16 @@ public sealed class KeywordArchetypeIndex : IArchetypeIndex
         "how", "do", "does", "about", "want", "need",
         "this", "that", "these", "those",
         "it", "its", "as", "so"
-    };
+    }.ToFrozenSet(StringComparer.Ordinal);
 
-    private readonly IReadOnlyDictionary<string, Archetype> _byId;
-    private readonly IReadOnlyDictionary<string, HashSet<string>> _keywordIndex;
-    private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _reverseRelated;
+    private readonly FrozenDictionary<string, Archetype> _byId;
+    private readonly FrozenDictionary<string, FrozenSet<string>> _keywordIndex;
+    private readonly FrozenDictionary<string, ImmutableArray<string>> _reverseRelated;
 
     private KeywordArchetypeIndex(
-        IReadOnlyDictionary<string, Archetype> byId,
-        IReadOnlyDictionary<string, HashSet<string>> keywordIndex,
-        IReadOnlyDictionary<string, IReadOnlyList<string>> reverseRelated)
+        FrozenDictionary<string, Archetype> byId,
+        FrozenDictionary<string, FrozenSet<string>> keywordIndex,
+        FrozenDictionary<string, ImmutableArray<string>> reverseRelated)
     {
         _byId = byId;
         _keywordIndex = keywordIndex;
@@ -1926,22 +2032,22 @@ public sealed class KeywordArchetypeIndex : IArchetypeIndex
 
     public static KeywordArchetypeIndex Build(IReadOnlyList<Archetype> archetypes)
     {
-        var byId = new Dictionary<string, Archetype>(StringComparer.Ordinal);
-        var keywordIndex = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        var reverseRelatedBuilder = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        var byIdBuilder = new Dictionary<string, Archetype>(StringComparer.Ordinal);
+        var keywordBuilder = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        var reverseBuilder = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 
         foreach (var archetype in archetypes)
         {
-            byId[archetype.Id] = archetype;
+            byIdBuilder[archetype.Id] = archetype;
 
             foreach (var keyword in archetype.Principles.Keywords)
             {
                 var normalized = keyword.Trim().ToLowerInvariant();
                 if (normalized.Length == 0) continue;
-                if (!keywordIndex.TryGetValue(normalized, out var set))
+                if (!keywordBuilder.TryGetValue(normalized, out var set))
                 {
                     set = new HashSet<string>(StringComparer.Ordinal);
-                    keywordIndex[normalized] = set;
+                    keywordBuilder[normalized] = set;
                 }
                 set.Add(archetype.Id);
             }
@@ -1949,18 +2055,25 @@ public sealed class KeywordArchetypeIndex : IArchetypeIndex
             foreach (var related in archetype.Principles.RelatedArchetypes)
             {
                 if (string.IsNullOrWhiteSpace(related)) continue;
-                if (!reverseRelatedBuilder.TryGetValue(related, out var set))
+                if (!reverseBuilder.TryGetValue(related, out var set))
                 {
                     set = new HashSet<string>(StringComparer.Ordinal);
-                    reverseRelatedBuilder[related] = set;
+                    reverseBuilder[related] = set;
                 }
                 set.Add(archetype.Id);
             }
         }
 
-        var reverseRelated = reverseRelatedBuilder.ToDictionary(
+        // Freeze everything. The index is immutable after this point —
+        // every lookup on the request path goes through FrozenDictionary.
+        var byId = byIdBuilder.ToFrozenDictionary(StringComparer.Ordinal);
+        var keywordIndex = keywordBuilder.ToFrozenDictionary(
             kvp => kvp.Key,
-            kvp => (IReadOnlyList<string>)kvp.Value.OrderBy(s => s, StringComparer.Ordinal).ToList(),
+            kvp => kvp.Value.ToFrozenSet(StringComparer.Ordinal),
+            StringComparer.Ordinal);
+        var reverseRelated = reverseBuilder.ToFrozenDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value.OrderBy(s => s, StringComparer.Ordinal).ToImmutableArray(),
             StringComparer.Ordinal);
 
         return new KeywordArchetypeIndex(byId, keywordIndex, reverseRelated);
@@ -2212,11 +2325,9 @@ Create `tests/GuardCode.Content.Tests/PrepServiceTests.cs`:
 ```csharp
 using System;
 using System.Collections.Generic;
-using FluentAssertions;
 using GuardCode.Content;
 using GuardCode.Content.Indexing;
 using GuardCode.Content.Services;
-using Xunit;
 
 namespace GuardCode.Content.Tests;
 
@@ -2440,11 +2551,9 @@ Create `tests/GuardCode.Content.Tests/ConsultationServiceTests.cs`:
 
 ```csharp
 using System.Collections.Generic;
-using FluentAssertions;
 using GuardCode.Content;
 using GuardCode.Content.Indexing;
 using GuardCode.Content.Services;
-using Xunit;
 
 namespace GuardCode.Content.Tests;
 
@@ -2920,7 +3029,7 @@ public sealed record ConsultToolResponse(
 
 - [ ] **Step 3: Build to verify**
 
-Run: `dotnet build SecureCodingMcp.sln`
+Run: `dotnet build SecureCodingMcp.slnx`
 Expected: `Build succeeded. 0 Warning(s) 0 Error(s)`.
 
 Note: `GuardCode.Mcp` still has the stub `Program.cs` from Task 1 — the build will succeed because the stub is a valid top-level-statements program. The tool types will be picked up automatically by `.WithToolsFromAssembly()` once we write the real composition root in Task 11.
@@ -3054,7 +3163,7 @@ return 0;
 
 - [ ] **Step 3: Build**
 
-Run: `dotnet build SecureCodingMcp.sln`
+Run: `dotnet build SecureCodingMcp.slnx`
 Expected: `Build succeeded. 0 Warning(s) 0 Error(s)`.
 
 If `AddMcpServer` / `WithStdioServerTransport` / `WithToolsFromAssembly` extension methods are not present, check the actual namespaces under the SDK (commonly `ModelContextProtocol.Server` or `ModelContextProtocol.Hosting`) and add the corresponding `using` directive. Do not replace the extension-method style with manual registration — the point of the SDK is that these extensions handle the MCP protocol plumbing.
@@ -3838,7 +3947,7 @@ func (s *Service) Submit(ctx context.Context, req SubmitRequest) (*Order, error)
 
 Run:
 ```bash
-dotnet build SecureCodingMcp.sln
+dotnet build SecureCodingMcp.slnx
 dotnet run --project src/GuardCode.Mcp --no-build < /dev/null
 ```
 
@@ -3871,7 +3980,7 @@ authoring effort tracked separately from this plan."
 
 One integration test that loads the *real* `archetypes/` directory (not a fake temp directory) and exercises the full pipeline: repository → index → prep → consult. This is the first line of defense against broken content in CI.
 
-The test needs to find the archetypes directory at runtime. Since `dotnet test` runs from `tests/GuardCode.Content.Tests/bin/Debug/net10.0`, we walk up until we find `SecureCodingMcp.sln` and then resolve `archetypes/` beside it.
+The test needs to find the archetypes directory at runtime. Since `dotnet test` runs from `tests/GuardCode.Content.Tests/bin/Debug/net10.0`, we walk up until we find `SecureCodingMcp.slnx` and then resolve `archetypes/` beside it.
 
 - [ ] **Step 1: Write the smoke test**
 
@@ -3879,12 +3988,10 @@ Create `tests/GuardCode.Content.Tests/ContentCorpusSmokeTests.cs`:
 
 ```csharp
 using System.IO;
-using FluentAssertions;
 using GuardCode.Content;
 using GuardCode.Content.Indexing;
 using GuardCode.Content.Loading;
 using GuardCode.Content.Services;
-using Xunit;
 
 namespace GuardCode.Content.Tests;
 
@@ -3895,14 +4002,14 @@ public class ContentCorpusSmokeTests
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "SecureCodingMcp.sln")))
+            if (File.Exists(Path.Combine(dir.FullName, "SecureCodingMcp.slnx")))
             {
                 return Path.Combine(dir.FullName, "archetypes");
             }
             dir = dir.Parent;
         }
         throw new DirectoryNotFoundException(
-            "could not locate SecureCodingMcp.sln by walking up from the test bin directory");
+            "could not locate SecureCodingMcp.slnx by walking up from the test bin directory");
     }
 
     [Fact]
@@ -3988,7 +4095,7 @@ Expected: **5 passed**. If `Prep_FindsPasswordHashingForHashingIntent` fails bec
 
 - [ ] **Step 3: Run the full test suite to confirm nothing regressed**
 
-Run: `dotnet test SecureCodingMcp.sln`
+Run: `dotnet test SecureCodingMcp.slnx`
 Expected: **all tests pass**. This is the first time we're asserting the whole suite green.
 
 - [ ] **Step 4: Commit**
@@ -4101,7 +4208,7 @@ Add an MCP server entry pointing at the compiled `guardcode-mcp` binary. See you
 ## Repository layout
 
 ```
-SecureCodingMcp.sln
+SecureCodingMcp.slnx
 ├── src/
 │   ├── GuardCode.Mcp/        (executable, composition root, MCP tool handlers)
 │   └── GuardCode.Content/    (domain, loading, indexing, services)
@@ -4227,7 +4334,7 @@ The hardest part is writing advice that is genuinely useful and stays useful. A 
 1. Open an issue first if you're unsure whether the archetype is in scope — GuardCode targets function- or class-level guidance for backend and systems code.
 2. Fork the repo and create a branch.
 3. Add the directory, the principles file, and at least one language file.
-4. Run the tests: `dotnet test SecureCodingMcp.sln`. The content-corpus smoke test will catch most validation errors immediately.
+4. Run the tests: `dotnet test SecureCodingMcp.slnx`. The content-corpus smoke test will catch most validation errors immediately.
 5. Open a PR. Describe what gap the new archetype fills and which real-world failures it helps prevent.
 
 ## How to add a new language to an existing archetype
@@ -4242,9 +4349,9 @@ You do not need to modify the principles file beyond the `applies_to` list — i
 ## Running the tests
 
 ```bash
-dotnet restore SecureCodingMcp.sln
-dotnet build SecureCodingMcp.sln
-dotnet test SecureCodingMcp.sln
+dotnet restore SecureCodingMcp.slnx
+dotnet build SecureCodingMcp.slnx
+dotnet test SecureCodingMcp.slnx
 ```
 
 All tests must pass before a PR will be merged.
@@ -4277,9 +4384,9 @@ adding a new archetype or language file."
 
 Run:
 ```bash
-dotnet clean SecureCodingMcp.sln
-dotnet build SecureCodingMcp.sln -c Debug
-dotnet test SecureCodingMcp.sln -c Debug
+dotnet clean SecureCodingMcp.slnx
+dotnet build SecureCodingMcp.slnx -c Debug
+dotnet test SecureCodingMcp.slnx -c Debug
 ```
 Expected: build succeeds with 0 warnings/errors, all tests pass. Total test count should be approximately: 5 (FrontmatterParser) + 4 (ArchetypeLoader) + 5 (ArchetypeValidator) + 3 (FileSystemArchetypeRepository) + 5 (KeywordArchetypeIndex) + 4 (PrepService) + 5 (ConsultationService) + 5 (ContentCorpusSmokeTests) = **36 tests**, all passing.
 
@@ -4287,7 +4394,7 @@ Expected: build succeeds with 0 warnings/errors, all tests pass. Total test coun
 
 Run:
 ```bash
-dotnet build SecureCodingMcp.sln -c Release
+dotnet build SecureCodingMcp.slnx -c Release
 dotnet run --project src/GuardCode.Mcp -c Release --no-build < /dev/null
 ```
 
