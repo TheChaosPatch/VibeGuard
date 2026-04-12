@@ -26,7 +26,7 @@ The intelligence lives in the content, not the server. Everything VibeGuard know
 - [Running the server](#running-the-server)
 - [Wiring into an MCP client](#wiring-into-an-mcp-client)
 - [End-to-end example](#end-to-end-example)
-- [What ships in the MVP corpus](#what-ships-in-the-mvp-corpus)
+- [What ships in the corpus](#what-ships-in-the-corpus)
 - [Architecture](#architecture)
 - [Configuration reference](#configuration-reference)
 - [Troubleshooting](#troubleshooting)
@@ -62,7 +62,7 @@ VibeGuard is **not**:
 - **Indexing** happens once at startup. The full corpus is loaded, validated strictly (YAML frontmatter schema, body-length budgets, reference-implementation size caps, orphan-reference detection, lifecycle field requirements), and frozen into an immutable in-memory index. If anything fails validation the server refuses to start and writes a diagnostic to stderr.
 - **Server instructions** are sent to the LLM during the MCP handshake. Any MCP-aware client surfaces them as a system-prompt fragment that tells the model *when* to call `prep` — before writing any security-sensitive or architecturally-interesting function — so it reaches for VibeGuard on its own instead of waiting to be told.
 - **`prep`** scores archetypes against the LLM's natural-language intent using keyword matching and returns up to 8 candidates, highest-scoring first. No network, no model, fully deterministic.
-- **`consult`** composes the principles file with the language file into one markdown payload. If the archetype doesn't cover the requested language, it returns a redirect with a suggested alternative when one exists.
+- **`consult`** composes the principles file with the language file into one markdown payload. Language-agnostic archetypes (`applies_to: [all]`) return principles only — architectural guidance without code examples. If a language-specific archetype doesn't cover the requested language, it returns a redirect with a suggested alternative when one exists.
 
 ## The two tools
 
@@ -94,7 +94,7 @@ Response shape:
 
 ### `consult(archetype, language)`
 
-Fetches the full guidance document for one archetype. Called by the LLM after `prep` has ranked candidates — again, driven by the handshake instructions, not by the human developer.
+Fetches the full guidance document for one archetype. Called by the LLM after `prep` has ranked candidates — again, driven by the handshake instructions, not by the human developer. Language-agnostic archetypes (those with `applies_to: [all]`) return principles only — architectural guidance without code examples. Language-specific archetypes compose principles with a reference implementation, library choices, and gotchas.
 
 | Parameter   | Type   | Required | Description                                             |
 |-------------|--------|----------|---------------------------------------------------------|
@@ -122,7 +122,7 @@ Response shape:
 }
 ```
 
-If the archetype doesn't cover the requested language, `content` is null, `redirect` is `true`, `message` explains why, and `suggested` lists sibling archetypes that do apply.
+If the archetype doesn't cover the requested language, `content` is null, `redirect` is `true`, `message` explains why, and `suggested` lists sibling archetypes that do apply. Language-agnostic archetypes always return their principles regardless of the requested language.
 
 ---
 
@@ -349,35 +349,53 @@ With the principles and reference implementation in its context window the LLM n
 
 ---
 
-## What ships in the MVP corpus
+## What ships in the corpus
 
-The MVP ships **three stable archetypes** that LLM clients see by default, plus **nine archetypes in `draft`** that are parsed and validated on every build but hidden from `prep` results unless you opt in. Community contributions are how the corpus grows from here.
+The corpus ships **30 archetypes** across 9 categories — 3 stable and 27 in draft. Stable archetypes are visible to LLM clients by default; drafts are validated on every build but hidden from `prep` results unless you opt in with `VIBEGUARD_INCLUDE_DRAFTS=1`.
 
 **Stable (default-visible to clients):**
 
-| Archetype                  | Principles | Language files              |
-|----------------------------|------------|------------------------------|
-| `auth/password-hashing`    | yes        | `csharp`, `python`           |
-| `io/input-validation`      | yes        | `csharp`, `python`, `c`      |
-| `errors/error-handling`    | yes        | `csharp`, `go`               |
+| Archetype                  | Language files                   |
+|----------------------------|----------------------------------|
+| `auth/password-hashing`    | `csharp`, `python`, `go`         |
+| `io/input-validation`      | `csharp`, `python`, `c`, `go`    |
+| `errors/error-handling`    | `csharp`, `python`, `c`, `go`    |
 
-**Draft (hidden unless `VIBEGUARD_INCLUDE_DRAFTS=1`):**
+**Draft — by category:**
 
-| Archetype                             | Language files        |
-|---------------------------------------|-----------------------|
-| `auth/api-endpoint-authentication`    | `csharp`, `python`    |
-| `auth/authorization`                  | `csharp`, `python`    |
-| `crypto/symmetric-encryption`         | `csharp`, `python`    |
-| `http/ssrf`                           | `csharp`, `python`    |
-| `io/path-traversal`                   | `csharp`, `python`    |
-| `io/unsafe-deserialization`           | `csharp`, `python`    |
-| `logging/sensitive-data`              | `csharp`, `python`    |
-| `persistence/secrets-handling`        | `csharp`, `python`    |
-| `persistence/sql-injection`           | `csharp`, `python`, `rust` |
+| Category       | Archetype                          | Language files              |
+|----------------|------------------------------------|-----------------------------|
+| **auth**       | `auth/api-endpoint-authentication` | `csharp`, `python`          |
+|                | `auth/authorization`               | `csharp`, `python`          |
+|                | `auth/session-tokens`              | `csharp`, `python`, `go`    |
+|                | `auth/mfa`                         | `csharp`, `python`, `go`    |
+|                | `auth/oauth-integration`           | `csharp`, `python`, `go`    |
+| **crypto**     | `crypto/symmetric-encryption`      | `csharp`, `python`          |
+|                | `crypto/random-number-generation`  | `csharp`, `python`, `go`    |
+|                | `crypto/tls-configuration`         | `csharp`, `python`, `go`    |
+|                | `crypto/key-management`            | `csharp`, `python`, `go`    |
+| **http**       | `http/ssrf`                        | `csharp`, `python`          |
+|                | `http/xss`                         | `csharp`, `python`, `go`    |
+|                | `http/csrf`                        | `csharp`, `python`, `go`    |
+|                | `http/security-headers`            | `csharp`, `python`, `go`    |
+|                | `http/cors`                        | `csharp`, `python`, `go`    |
+| **io**         | `io/path-traversal`                | `csharp`, `python`          |
+|                | `io/unsafe-deserialization`        | `csharp`, `python`          |
+|                | `io/command-injection`             | `csharp`, `python`, `go`    |
+|                | `io/file-upload`                   | `csharp`, `python`, `go`    |
+| **persistence**| `persistence/secrets-handling`     | `csharp`, `python`          |
+|                | `persistence/sql-injection`        | `csharp`, `python`, `rust`  |
+|                | `persistence/orm-security`         | `csharp`, `python`, `go`    |
+|                | `persistence/dependency-management`| `csharp`, `python`, `go`    |
+| **logging**    | `logging/sensitive-data`           | `csharp`, `python`          |
+|                | `logging/audit-trail`              | `csharp`, `python`, `go`    |
+| **memory**     | `memory/buffer-overflow`           | `c`, `rust`, `go`           |
+|                | `memory/use-after-free`            | `c`, `rust`                 |
+| **concurrency**| `concurrency/race-conditions`      | `csharp`, `python`, `go`    |
 
-Every archetype ships a `_principles.md` file (universal architectural guidance, references to OWASP ASVS / cheat sheets / CWE) plus one markdown file per supported language. Adding a language file to an existing archetype is usually the easiest first contribution — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Every archetype ships a `_principles.md` file (language-agnostic architectural guidance, references to OWASP ASVS / cheat sheets / CWE) plus one markdown file per supported language. Some archetypes use `applies_to: [all]` to deliver principles-only guidance that applies regardless of language — these return architectural advice without code examples.
 
-New archetypes are expected to land as `draft` first and graduate through review — see the **Archetype lifecycle** section in [CONTRIBUTING.md](CONTRIBUTING.md) for the full flow. If you want to see drafts locally while developing content, launch the server with `VIBEGUARD_INCLUDE_DRAFTS=1` in its environment.
+Adding a language file to an existing archetype is usually the easiest first contribution — see [CONTRIBUTING.md](CONTRIBUTING.md). New archetypes land as `draft` first and graduate through review — see the **Archetype lifecycle** section in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Architecture
 
@@ -478,10 +496,10 @@ You need the .NET 10 SDK. `dotnet --list-sdks` should include a 10.x entry.
 
 ## Roadmap
 
-The MVP proves the shape. The next steps are about growing the content and widening the supported targets.
+The corpus has grown from 3 to 30 archetypes across 9 categories. The next steps are about deepening coverage and widening the supported targets.
 
-- **Corpus expansion** — more archetypes: `auth/session-tokens`, `auth/api-endpoint-authentication`, `persistence/sql-access`, `persistence/secrets-handling`, `io/path-traversal`, `io/deserialization`, `net/ssrf`, `net/tls-config`, `concurrency/shared-state`, `logging/structured-logging`, and a long tail of topics the community cares about. This is the most load-bearing roadmap item — VibeGuard's value scales with corpus depth.
-- **More languages** — Rust is in the default set as of v0.3.0. The obvious next targets are JavaScript/TypeScript, Java, Kotlin, and Swift. Adding a language is a content PR plus (optionally) a one-line config change to extend `VIBEGUARD_SUPPORTED_LANGUAGES`; the server itself has no enum to edit.
+- **Corpus depth** — promote drafts to stable through review, fill language gaps (Rust and C coverage is thinner than C#/Python/Go), and add new archetypes as the community identifies topics. VibeGuard's value scales with corpus depth.
+- **More languages** — JavaScript/TypeScript, Java, Kotlin, and Swift are the obvious next targets. Adding a language is a content PR plus (optionally) a one-line config change to extend `VIBEGUARD_SUPPORTED_LANGUAGES`; the server itself has no enum to edit.
 - **Smarter prep scoring** — optional embedding-based retrieval as a sibling of the keyword scorer, gated behind a config flag so the deterministic path remains the default.
 - **Framework awareness** — the `framework` parameter on `prep` is already accepted on the wire; activating it means adding per-framework sub-files or frontmatter.
 - **Content review tooling** — a lightweight linter for PRs that runs the same validator the server runs at startup, so contributors see errors before pushing.

@@ -43,7 +43,7 @@ Secrets live in exactly one place at rest: a secrets manager designed for the jo
 
 ## Anti-patterns
 - Hardcoding an API key as a string constant "until we figure out the config story."
-- Committing `appsettings.Production.json` (or any name-equivalent) with real values.
+- Committing production config files with real secrets checked into source control.
 - Logging the full HTTP request including `Authorization` or `Cookie` headers.
 - Fetching secrets from the cloud provider on every request ("we'll add caching later").
 - Passing a secret on the command line (`myapp --db-password=hunter2`) — it lands in shell history, in the process table, in audit logs.
