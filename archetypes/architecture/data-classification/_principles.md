@@ -4,7 +4,10 @@ archetype: architecture/data-classification
 title: Data Classification
 summary: Categorizing data by sensitivity and applying proportional controls to storage, transit, logging, and retention.
 applies_to: [all]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - data-classification
   - sensitivity

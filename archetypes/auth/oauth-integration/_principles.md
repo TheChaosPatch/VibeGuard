@@ -4,7 +4,10 @@ archetype: auth/oauth-integration
 title: OAuth 2.0 / OIDC Client Integration
 summary: Securely integrating with OAuth 2.0 and OpenID Connect as a relying party.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - oauth
   - oauth2

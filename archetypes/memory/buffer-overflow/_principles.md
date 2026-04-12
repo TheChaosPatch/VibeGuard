@@ -4,7 +4,10 @@ archetype: memory/buffer-overflow
 title: Buffer Overflow Defense
 summary: Preventing out-of-bounds writes and reads through bounds checking, safe APIs, and compiler hardening.
 applies_to: [c, rust, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - buffer
   - overflow

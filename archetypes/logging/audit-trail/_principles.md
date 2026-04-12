@@ -4,7 +4,10 @@ archetype: logging/audit-trail
 title: Security Audit Trail
 summary: Structured, tamper-evident audit logs that record who did what, when, and why.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - audit
   - audit-trail

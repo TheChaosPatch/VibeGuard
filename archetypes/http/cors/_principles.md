@@ -4,7 +4,10 @@ archetype: http/cors
 title: Cross-Origin Resource Sharing Configuration
 summary: Configuring CORS to allow legitimate cross-origin requests without opening the door to unauthorized access.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - cors
   - cross-origin

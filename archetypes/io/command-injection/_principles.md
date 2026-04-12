@@ -4,7 +4,10 @@ archetype: io/command-injection
 title: Command Injection Defense
 summary: Preventing untrusted input from being interpreted as OS commands or arguments.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - command-injection
   - os-command

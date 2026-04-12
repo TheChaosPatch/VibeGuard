@@ -4,7 +4,10 @@ archetype: crypto/key-management
 title: Cryptographic Key Management
 summary: Generating, storing, rotating, and destroying cryptographic keys throughout their lifecycle.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - key-management
   - kms

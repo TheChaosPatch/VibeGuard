@@ -4,7 +4,10 @@ archetype: architecture/secure-ci-cd
 title: Secure CI/CD Pipelines
 summary: Hardening build, test, and deployment pipelines against supply-chain attacks and configuration drift.
 applies_to: [all]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - ci-cd
   - pipeline

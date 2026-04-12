@@ -4,7 +4,10 @@ archetype: memory/use-after-free
 title: Use-After-Free Defense
 summary: Preventing access to freed memory through ownership clarity, lifetime management, and pointer discipline.
 applies_to: [c, rust]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - use-after-free
   - dangling

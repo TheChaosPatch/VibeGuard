@@ -4,7 +4,10 @@ archetype: persistence/orm-security
 title: ORM Security
 summary: Preventing mass assignment, query injection, and data leaks through ORM misuse.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - orm
   - mass-assignment

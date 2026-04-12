@@ -4,7 +4,10 @@ archetype: auth/mfa
 title: Multi-Factor Authentication
 summary: Implementing TOTP, WebAuthn, and backup codes as a second authentication factor.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - mfa
   - 2fa

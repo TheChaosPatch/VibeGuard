@@ -4,7 +4,10 @@ archetype: persistence/dependency-management
 title: Dependency Management
 summary: Supply chain security through lockfiles, audits, pinning, and verified sources.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - supply-chain
   - dependency

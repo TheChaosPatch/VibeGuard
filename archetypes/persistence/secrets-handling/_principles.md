@@ -4,7 +4,10 @@ archetype: persistence/secrets-handling
 title: Secrets Handling
 summary: Storing, loading, and using API keys, credentials, and signing keys safely.
 applies_to: [csharp, python]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - secret
   - credential

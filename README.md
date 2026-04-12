@@ -413,21 +413,12 @@ With the principles and reference implementation in its context window the LLM n
 
 ## What ships in the corpus
 
-The corpus ships **37 archetypes** across 10 categories — 3 stable and 34 in draft. Stable archetypes are visible to LLM clients by default; drafts are validated on every build but hidden from `prep` results unless you opt in with `VIBEGUARD_INCLUDE_DRAFTS=1`.
-
-**Stable (default-visible to clients):**
-
-| Archetype                  | Language files                   |
-|----------------------------|----------------------------------|
-| `auth/password-hashing`    | `csharp`, `python`, `go`         |
-| `io/input-validation`      | `csharp`, `python`, `c`, `go`    |
-| `errors/error-handling`    | `csharp`, `python`, `c`, `go`    |
-
-**Draft — by category:**
+The corpus ships **37 stable archetypes** across 10 categories. All archetypes are visible to LLM clients by default.
 
 | Category       | Archetype                          | Language files              |
 |----------------|------------------------------------|-----------------------------|
-| **auth**       | `auth/api-endpoint-authentication` | `csharp`, `python`          |
+| **auth**       | `auth/password-hashing`            | `csharp`, `python`, `go`    |
+|                | `auth/api-endpoint-authentication` | `csharp`, `python`          |
 |                | `auth/authorization`               | `csharp`, `python`          |
 |                | `auth/session-tokens`              | `csharp`, `python`, `go`    |
 |                | `auth/mfa`                         | `csharp`, `python`, `go`    |
@@ -441,7 +432,8 @@ The corpus ships **37 archetypes** across 10 categories — 3 stable and 34 in d
 |                | `http/csrf`                        | `csharp`, `python`, `go`    |
 |                | `http/security-headers`            | `csharp`, `python`, `go`    |
 |                | `http/cors`                        | `csharp`, `python`, `go`    |
-| **io**         | `io/path-traversal`                | `csharp`, `python`          |
+| **io**         | `io/input-validation`              | `csharp`, `python`, `c`, `go`    |
+|                | `io/path-traversal`                | `csharp`, `python`          |
 |                | `io/unsafe-deserialization`        | `csharp`, `python`          |
 |                | `io/command-injection`             | `csharp`, `python`, `go`    |
 |                | `io/file-upload`                   | `csharp`, `python`, `go`    |
@@ -449,6 +441,7 @@ The corpus ships **37 archetypes** across 10 categories — 3 stable and 34 in d
 |                | `persistence/sql-injection`        | `csharp`, `python`, `rust`  |
 |                | `persistence/orm-security`         | `csharp`, `python`, `go`    |
 |                | `persistence/dependency-management`| `csharp`, `python`, `go`    |
+| **errors**     | `errors/error-handling`            | `csharp`, `python`, `c`, `go`    |
 | **logging**    | `logging/sensitive-data`           | `csharp`, `python`          |
 |                | `logging/audit-trail`              | `csharp`, `python`, `go`    |
 | **memory**     | `memory/buffer-overflow`           | `c`, `rust`, `go`           |
@@ -594,7 +587,7 @@ You need the .NET 10 SDK. `dotnet --list-sdks` should include a 10.x entry.
 
 The corpus has grown from 3 to 37 archetypes across 10 categories. The next steps are about deepening coverage and widening the supported targets.
 
-- **Corpus depth** — promote drafts to stable through review, fill language gaps (Rust and C coverage is thinner than C#/Python/Go), and add new archetypes as the community identifies topics. VibeGuard's value scales with corpus depth.
+- **Corpus depth** — fill language gaps (Rust and C coverage is thinner than C#/Python/Go), and add new archetypes as the community identifies topics. VibeGuard's value scales with corpus depth.
 - **More languages** — JavaScript/TypeScript, Java, Kotlin, and Swift are the obvious next targets. Adding a language is a content PR plus (optionally) a one-line config change to extend `VIBEGUARD_SUPPORTED_LANGUAGES`; the server itself has no enum to edit.
 - **Smarter prep scoring** — optional embedding-based retrieval as a sibling of the keyword scorer, gated behind a config flag so the deterministic path remains the default.
 - **Framework awareness** — the `framework` parameter on `prep` is already accepted on the wire; activating it means adding per-framework sub-files or frontmatter.

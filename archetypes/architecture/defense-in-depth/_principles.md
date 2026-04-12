@@ -4,7 +4,10 @@ archetype: architecture/defense-in-depth
 title: Defense in Depth
 summary: Layering independent security controls so that no single failure compromises the system.
 applies_to: [all]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - defense-in-depth
   - layered-security

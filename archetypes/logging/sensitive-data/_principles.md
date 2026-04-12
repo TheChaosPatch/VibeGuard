@@ -4,7 +4,10 @@ archetype: logging/sensitive-data
 title: Sensitive Data in Logs
 summary: Keeping secrets, credentials, and personal data out of the log stream.
 applies_to: [csharp, python]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - log
   - logging

@@ -4,7 +4,10 @@ archetype: architecture/resilience-patterns
 title: Resilience Patterns
 summary: Designing systems to degrade gracefully, recover automatically, and prevent cascading failures.
 applies_to: [all]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - resilience
   - circuit-breaker

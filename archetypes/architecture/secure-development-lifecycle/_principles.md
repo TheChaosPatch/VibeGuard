@@ -4,7 +4,10 @@ archetype: architecture/secure-development-lifecycle
 title: Secure Development Lifecycle
 summary: End-to-end guidance for building software that is architecturally sound, maintainable, and secure from project creation through deployment.
 applies_to: [all]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - architecture
   - solid

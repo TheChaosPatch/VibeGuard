@@ -4,7 +4,10 @@ archetype: io/unsafe-deserialization
 title: Unsafe Deserialization Defense
 summary: Parsing untrusted payloads into typed data without granting the sender RCE.
 applies_to: [csharp, python]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - deserialize
   - deserialization

@@ -4,7 +4,10 @@ archetype: http/ssrf
 title: Server-Side Request Forgery Defense
 summary: Stopping user-supplied URLs from turning your server into an attacker-controlled HTTP client.
 applies_to: [csharp, python]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - ssrf
   - url

@@ -4,7 +4,10 @@ archetype: architecture/threat-modeling
 title: Threat Modeling
 summary: Systematically identifying, categorizing, and mitigating threats before writing code.
 applies_to: [all]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - threat-modeling
   - stride

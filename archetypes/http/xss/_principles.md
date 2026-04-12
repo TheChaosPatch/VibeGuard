@@ -4,7 +4,10 @@ archetype: http/xss
 title: Cross-Site Scripting Defense
 summary: Preventing untrusted data from executing as code in the browser.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - xss
   - cross-site

@@ -4,7 +4,10 @@ archetype: concurrency/race-conditions
 title: Race Condition Defense
 summary: Preventing TOCTOU, double-spend, and check-then-act bugs through proper synchronization.
 applies_to: [csharp, python, go]
-status: draft
+status: stable
+author: ehabhussein
+reviewed_by: [ehabhussein]
+stable_since: "2026-04-12"
 keywords:
   - race-condition
   - toctou
