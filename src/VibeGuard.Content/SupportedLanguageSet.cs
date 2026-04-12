@@ -40,7 +40,7 @@ public sealed partial class SupportedLanguageSet : IReadOnlyCollection<string>
     /// language end-to-end, a sixth is a content-only change.
     /// </summary>
     private static readonly string[] DefaultWireNames =
-        ["csharp", "python", "c", "go", "rust"];
+        ["csharp", "python", "c", "go", "rust", "javascript", "typescript", "java", "kotlin", "swift", "ruby", "php"];
 
     private readonly FrozenSet<string> _wireNames;
     private readonly string _sortedList;

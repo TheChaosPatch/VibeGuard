@@ -7,12 +7,12 @@ namespace VibeGuard.Content.Tests;
 public class SupportedLanguageSetTests
 {
     [Fact]
-    public void Default_IncludesTheFiveLaunchLanguages()
+    public void Default_IncludesAllConfiguredLanguages()
     {
         var set = SupportedLanguageSet.Default();
 
-        set.Should().BeEquivalentTo(["csharp", "python", "c", "go", "rust"]);
-        set.Count.Should().Be(5);
+        set.Should().BeEquivalentTo(["csharp", "python", "c", "go", "rust", "javascript", "typescript", "java", "kotlin", "swift", "ruby", "php"]);
+        set.Count.Should().Be(12);
     }
 
     [Fact]
