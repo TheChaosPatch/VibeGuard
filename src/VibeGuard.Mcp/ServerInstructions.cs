@@ -16,10 +16,12 @@ internal static class ServerInstructions
 {
     public const string Text =
         """
-        VibeGuard is a curated security and architecture guidance server for backend and systems code. When an archetype applies, treat its principles as authoritative.
+        VibeGuard is a curated engineering guidance server covering security, architecture, and operational safety for backend and systems code. Its corpus spans authentication, cryptography, injection defense, input handling, HTTP security, memory safety, concurrency, logging, and dependency management. When an archetype applies, treat its principles as authoritative.
 
-        Workflow: Before writing any non-trivial function, class, or module — especially anything touching authentication, password handling, session management, input validation, deserialization, database access, cryptography, secrets management, error handling, or external I/O — call the 'prep' tool with a short natural-language description of the task and the target language. Then call 'consult' on the top relevant archetypes to retrieve the full guidance document, and write your implementation in a way that honors its principles and avoids its documented anti-patterns.
+        Workflow: Before writing any non-trivial function, class, or module, call 'prep' with a short natural-language description of the task and the target language. Then call 'consult' on the top relevant archetypes and write your implementation honoring the returned principles and avoiding the documented anti-patterns. Some archetypes are language-agnostic — they return architectural guidance without code examples; others include language-specific reference implementations, library recommendations, and gotchas.
 
-        Skip this flow only for trivial edits (renames, formatting, obvious one-liners) or for work clearly outside VibeGuard's scope (UI code, configuration files, documentation, tests for already-specified behavior). When in doubt, call 'prep' — it is cheap and deterministic, and returns an empty result when nothing applies.
+        Topics that warrant a prep call: authentication, authorization, sessions, passwords, OAuth/OIDC, MFA, cryptography, key management, TLS configuration, random number generation, SQL/ORM queries, input validation, deserialization, file uploads, command execution, path traversal, SSRF, XSS, CSRF, CORS, security headers, error handling, logging, audit trails, secrets management, race conditions, buffer overflows, use-after-free (C/Rust unsafe code), and dependency/supply-chain security.
+
+        Skip only for trivial edits (renames, formatting, one-liners) or work clearly outside scope (pure frontend without server interaction, config files, documentation). When in doubt, call 'prep' — it is cheap and deterministic, and returns an empty result when nothing applies.
         """;
 }

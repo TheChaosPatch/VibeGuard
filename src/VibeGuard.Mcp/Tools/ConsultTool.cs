@@ -18,10 +18,11 @@ internal static class ConsultTool
     [McpServerTool(Name = "consult")]
     [Description(
         "Retrieve the full guidance document for one VibeGuard archetype. " +
-        "Returns principles plus language-specific implementation guidance " +
-        "as a single composed markdown document. If the archetype does not " +
-        "apply to the requested language, returns a redirect with a suggested " +
-        "alternative when available.")]
+        "Returns principles and, when available, language-specific implementation " +
+        "guidance (library choices, reference code, gotchas) as a single composed " +
+        "markdown document. Language-agnostic archetypes return principles only. " +
+        "If the archetype does not apply to the requested language, returns a " +
+        "redirect with a suggested alternative when available.")]
     public static ConsultToolResponse Run(
         IConsultationService service,
         [Description("Archetype identifier, e.g. 'auth/password-hashing'.")] string archetype,

@@ -71,7 +71,7 @@ public sealed class KeywordArchetypeIndex : IArchetypeIndex
         {
             if (raw <= 0) continue;
             var archetype = _byId[id];
-            if (!archetype.Principles.AppliesTo.Contains(language, StringComparer.Ordinal)) continue;
+            if (!AppliesToLanguage(archetype, language)) continue;
             var normalized = Math.Min(1.0, raw / divisor);
             hits.Add(new PrepMatch(id, archetype.Principles.Title, archetype.Principles.Summary, normalized));
         }
@@ -85,6 +85,15 @@ public sealed class KeywordArchetypeIndex : IArchetypeIndex
         var byScore = b.Score.CompareTo(a.Score);
         return byScore != 0 ? byScore : StringComparer.Ordinal.Compare(a.ArchetypeId, b.ArchetypeId);
     }
+
+    /// <summary>
+    /// Returns true when an archetype is relevant for the given language.
+    /// Archetypes with <c>applies_to: [all]</c> match every language —
+    /// this supports principles-only (language-agnostic) archetypes.
+    /// </summary>
+    private static bool AppliesToLanguage(Archetype archetype, string language)
+        => archetype.Principles.AppliesTo.Contains("all", StringComparer.OrdinalIgnoreCase)
+        || archetype.Principles.AppliesTo.Contains(language, StringComparer.Ordinal);
 
     private static FrozenDictionary<string, Archetype> BuildByIdIndex(IReadOnlyList<Archetype> archetypes)
     {

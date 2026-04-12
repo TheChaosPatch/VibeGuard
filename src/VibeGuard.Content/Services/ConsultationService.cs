@@ -56,8 +56,10 @@ public sealed partial class ConsultationService(
             return NotFound(archetypeId, language);
         }
 
-        var appliesToLanguage = archetype.Principles.AppliesTo
-            .Contains(language, StringComparer.Ordinal);
+        var isUniversal = archetype.Principles.AppliesTo
+            .Contains("all", StringComparer.OrdinalIgnoreCase);
+        var appliesToLanguage = isUniversal
+            || archetype.Principles.AppliesTo.Contains(language, StringComparer.Ordinal);
 
         if (!appliesToLanguage)
         {
@@ -66,7 +68,12 @@ public sealed partial class ConsultationService(
 
         if (!archetype.LanguageFiles.TryGetValue(language, out var languageFile))
         {
-            return MissingLanguageFile(archetypeId, language);
+            // Principles-only (language-agnostic) archetypes return just
+            // the principles body. Language-specific archetypes that list
+            // a language in applies_to but lack the file are still errors.
+            return isUniversal || archetype.LanguageFiles.Count == 0
+                ? PrinciplesOnlyComposition(archetype, language)
+                : MissingLanguageFile(archetypeId, language);
         }
 
         return NormalComposition(archetype, language, languageFile);
@@ -151,6 +158,34 @@ public sealed partial class ConsultationService(
                      "but no language file exists on disk.",
             Suggested: Array.Empty<string>(),
             NotFound: true);
+
+    private ConsultResult PrinciplesOnlyComposition(Archetype archetype, string wireLanguage)
+    {
+        var content = archetype.Principles.Status == ArchetypeStatus.Deprecated
+            && !string.IsNullOrWhiteSpace(archetype.Principles.SupersededBy)
+                ? string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    DeprecationBannerFormat,
+                    archetype.Principles.SupersededBy) + archetype.PrinciplesBody
+                : archetype.PrinciplesBody;
+
+        var related = archetype.Principles.RelatedArchetypes
+            .Concat(index.GetReverseRelated(archetype.Id))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(s => s, StringComparer.Ordinal)
+            .ToList();
+
+        return new ConsultResult(
+            Archetype: archetype.Id,
+            Language: wireLanguage,
+            Content: content,
+            RelatedArchetypes: related,
+            References: archetype.Principles.References,
+            Redirect: false,
+            Message: null,
+            Suggested: Array.Empty<string>(),
+            NotFound: false);
+    }
 
     private ConsultResult NormalComposition(
         Archetype archetype,

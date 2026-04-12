@@ -96,8 +96,12 @@ public static class ArchetypeLoader
         // Closing this at load time means `applies_to: [klingon]` fails
         // startup with a clear diagnostic instead of silently passing
         // validation and mysteriously returning nothing at query time.
+        // The sentinel value "all" marks language-agnostic (principles-only)
+        // archetypes and is exempt from language validation.
         foreach (var declared in parsed.Frontmatter.AppliesTo)
         {
+            if (string.Equals(declared, "all", StringComparison.OrdinalIgnoreCase))
+                continue;
             if (!supportedLanguages.Contains(declared))
             {
                 throw new ArchetypeLoadException(
