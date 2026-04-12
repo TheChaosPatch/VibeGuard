@@ -130,7 +130,7 @@ If the archetype doesn't cover the requested language, `content` is null, `redir
 
 ### Prerequisites
 
-- An MCP-aware client (Claude Desktop, Claude Code, Cursor, or anything that speaks MCP stdio).
+- An MCP-aware client (Claude Desktop, Claude Code, Cursor, or anything that speaks MCP stdio or Streamable HTTP).
 - For the **pre-built binary** path: nothing else. Releases are self-contained.
 - For the **build from source** path: **.NET 10 SDK** or later — download from [dotnet.microsoft.com/download](https://dotnet.microsoft.com/download) — and **Git**.
 
@@ -186,28 +186,54 @@ The test suite exercises the loader, validator, indexer, and both services again
 
 ## Running the server
 
-VibeGuard speaks MCP over stdio, which means you almost never launch it by hand — the MCP client spawns it as a subprocess. But you can sanity-check the startup path:
+VibeGuard supports two MCP transports — **stdio** (default) and **Streamable HTTP** — over the same tool implementations. Pick the one that fits your deployment.
+
+### Stdio (default) — one process per client
+
+The default mode. The MCP client spawns VibeGuard as a subprocess and talks to it over stdin/stdout. This is the right choice for individual developers using Claude Desktop, Claude Code, Cursor, or any other MCP-aware IDE.
 
 ```bash
 dotnet run --project src/VibeGuard.Mcp
 ```
 
-On success the server loads the corpus, binds stdio, and waits silently for MCP protocol frames. Everything written to **stdout** is MCP wire format; all logs go to **stderr**. If the corpus fails to load you will see a diagnostic on stderr and the process exits with code 1. Press `Ctrl+C` to stop.
+On success the server loads the corpus, binds stdio, and waits silently for MCP protocol frames. Everything written to **stdout** is MCP wire format; all logs go to **stderr**. Press `Ctrl+C` to stop.
 
-### Why stdio, not HTTP?
+**Why stdio is the default:**
 
-VibeGuard only supports stdio transport. That is deliberate. MCP defines two wire transports — stdio and Streamable HTTP — and for a local developer tool that lives next to the IDE, stdio is strictly better:
+- **Zero configuration.** No port to pick, no firewall rule, no TLS cert. The client spawns a subprocess and pipes frames across stdin/stdout.
+- **No daemon.** The server only exists while the client is running.
+- **Local by construction.** A stdio server cannot be reached from another process, let alone another machine.
 
-- **Zero configuration.** No port to pick, no port to conflict with, no firewall rule, no TLS cert, no auth story. The client spawns a subprocess and pipes frames across stdin/stdout.
-- **No daemon.** The server only exists while the client is running. When you quit Claude Desktop, the server exits with it. Nothing lingers, nothing leaks file handles, nothing runs on your machine when you are not using it.
-- **Local by construction.** An HTTP server accidentally bound to `0.0.0.0` is a footgun. A stdio server cannot be reached from another process, let alone another machine, so there is no "did I misconfigure auth" question to answer.
-- **Faster.** No handshake overhead, no HTTP framing, no connection reuse logic. The MCP message is the entire wire cost.
+### Streamable HTTP — one server, many clients
 
-If VibeGuard ever needs to serve remote clients — a shared team instance, a CI runner — Streamable HTTP is the intended path, and the server can be extended to carry both transports under the same tool implementations. The MVP does not, because nothing in the MVP benefits from it.
+For teams, CI pipelines, and shared deployments where multiple clients need the same VibeGuard instance. The server starts a Kestrel HTTP listener and serves MCP over Streamable HTTP.
+
+```bash
+VIBEGUARD_TRANSPORT=http dotnet run --project src/VibeGuard.Mcp
+```
+
+Or on Windows PowerShell:
+
+```powershell
+$env:VIBEGUARD_TRANSPORT = 'http'
+dotnet run --project src/VibeGuard.Mcp
+```
+
+The server listens on port **3001** by default (configurable via `VIBEGUARD_HTTP_PORT` or `appsettings.json`). Logs go to stdout/stderr normally (Kestrel does not use stdout as a protocol channel). The server logs `VibeGuard HTTP transport listening on port 3001` when ready.
+
+**When to use HTTP:**
+
+- A shared team server so everyone consults the same corpus version.
+- A CI pipeline agent that calls `prep`/`consult` as part of a code-review step.
+- A deployment behind a reverse proxy or load balancer.
+
+**Note:** HTTP mode binds to `0.0.0.0` by default. For production deployments, put it behind a reverse proxy with TLS and authentication — the MCP server itself does not provide either.
 
 ## Wiring into an MCP client
 
-### Claude Desktop
+### Stdio transport (default)
+
+#### Claude Desktop
 
 Edit `claude_desktop_config.json` (the exact location depends on your OS — see [Anthropic's MCP quickstart](https://modelcontextprotocol.io/quickstart/user)) and add a `vibeguard` entry under `mcpServers`:
 
@@ -235,7 +261,7 @@ Linux / macOS:
 
 Restart Claude Desktop. Two tools named `prep` and `consult` should appear in the MCP tools list.
 
-### Claude Code
+#### Claude Code
 
 Claude Code uses the same MCP server model. Add VibeGuard via the CLI:
 
@@ -245,9 +271,45 @@ claude mcp add vibeguard /absolute/path/to/vibeguard-mcp
 
 Or edit your user-level `mcp.json` directly with the same shape as the Claude Desktop example.
 
-### Other MCP clients
+#### Other MCP clients (stdio)
 
-Any client that launches MCP servers as stdio subprocesses works the same way: point it at the `vibeguard-mcp` binary, no arguments needed. VibeGuard does not listen on sockets, does not require a config file at runtime beyond `appsettings.json` which is copied next to the binary, and does not phone home.
+Any client that launches MCP servers as stdio subprocesses works the same way: point it at the `vibeguard-mcp` binary, no arguments needed.
+
+### HTTP transport (shared/team deployments)
+
+Start the server in HTTP mode first (see [Running the server — Streamable HTTP](#streamable-http--one-server-many-clients)), then point your MCP client at the running instance.
+
+#### Claude Code
+
+Add VibeGuard as an HTTP MCP server by placing a `.mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "vibeguard": {
+      "type": "http",
+      "url": "http://your-server:3001/"
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "vibeguard": {
+      "type": "http",
+      "url": "http://your-server:3001/"
+    }
+  }
+}
+```
+
+#### Other MCP clients (HTTP)
+
+Any client that supports MCP Streamable HTTP transport can connect by pointing at the server's root URL (e.g. `http://localhost:3001/`). The server maps the MCP endpoint to `/` by default.
 
 ---
 
@@ -413,8 +475,9 @@ src/
   VibeGuard.Content/     Domain types, YAML loader, strict validator, keyword
                          index, prep + consult services. Pure library. No I/O
                          except the filesystem repository.
-  VibeGuard.Mcp/         Composition root (Generic Host + Serilog to stderr),
-                         MCP tool handlers (`prep`, `consult`), stdio transport.
+  VibeGuard.Mcp/         Composition root (Generic Host / WebApplication +
+                         Serilog), MCP tool handlers (`prep`, `consult`),
+                         dual transport (stdio + Streamable HTTP).
                          Depends on VibeGuard.Content.
 tests/
   VibeGuard.Content.Tests/
@@ -428,12 +491,28 @@ Design notes:
 - **Strict content validation.** YamlDotNet runs with no `IgnoreUnmatchedProperties`. Unknown frontmatter keys, missing required fields, body overflows, and orphan `related_archetypes` references all fail the load. If startup validation passes, the corpus is known-good.
 - **File-bound DTOs.** YAML deserialization targets use C# `file`-scoped types so mutability required by the deserializer never leaks onto the public domain surface — the public records are immutable with `IReadOnlyList` / `IReadOnlyDictionary` collections.
 - **Central Package Management.** Every NuGet version lives in `Directory.Packages.props`. csproj files reference packages by ID only.
-- **Serilog to stderr.** stdio is reserved for MCP wire frames; logs cannot pollute it. `Serilog.Sinks.Console` is configured with `standardErrorFromLevel: Verbose` so every event is routed to stderr.
+- **Dual transport.** The same tool implementations serve over stdio (one process per client, for local dev) or Streamable HTTP (one server for many clients, for teams/CI). Transport mode is resolved at startup from `VIBEGUARD_TRANSPORT` / `appsettings.json` / default (`stdio`). In stdio mode, Serilog routes all logs to stderr so stdout stays reserved for MCP wire frames. In HTTP mode, logs go to stdout/stderr normally.
 - **Source-generated log messages.** Hot-path logging uses `[LoggerMessage]` source-gen (CA1848) through the stock `ILogger` abstraction, so Serilog is a drop-in sink.
 
 See [`docs/superpowers/specs/2026-04-11-vibeguard-design.md`](docs/superpowers/specs/2026-04-11-vibeguard-design.md) for the full design spec.
 
 ## Configuration reference
+
+### Transport mode
+
+VibeGuard resolves the transport with the following precedence (first match wins):
+
+1. **Environment variable** `VIBEGUARD_TRANSPORT` — `stdio` or `http`.
+2. **`appsettings.json`** key `VibeGuard:Transport`.
+3. **Default** — `stdio`.
+
+### HTTP port
+
+When running in HTTP transport mode, the listening port is resolved with the following precedence:
+
+1. **Environment variable** `VIBEGUARD_HTTP_PORT` — a numeric port value.
+2. **`appsettings.json`** key `VibeGuard:HttpPort`.
+3. **Default** — `3001`.
 
 ### Archetype root
 
@@ -461,6 +540,8 @@ Adding a language to a VibeGuard deployment is therefore a content decision, not
 
 | Variable                   | Default  | Effect                                                                                             |
 |----------------------------|----------|----------------------------------------------------------------------------------------------------|
+| `VIBEGUARD_TRANSPORT`      | *(unset, defaults to `stdio`)* | Set to `http` to start the Streamable HTTP server instead of stdio. |
+| `VIBEGUARD_HTTP_PORT`      | *(unset, defaults to `3001`)* | Port for the HTTP transport. Ignored in stdio mode. |
 | `VIBEGUARD_INCLUDE_DRAFTS` | *(unset)* | Drafts are parsed and validated but hidden from the active corpus. Set to any non-empty value to include drafts in `prep` results and make them resolvable via `consult`. Intended for local content development, not production. |
 | `VIBEGUARD_SUPPORTED_LANGUAGES` | *(unset)* | Comma-separated list of lowercase wire names that overrides the default supported-language set. See [Supported languages](#supported-languages). |
 
@@ -470,6 +551,8 @@ Example `appsettings.json`:
 {
   "VibeGuard": {
     "ArchetypesRoot": "/opt/vibeguard/archetypes",
+    "Transport": "stdio",
+    "HttpPort": 3001,
     "SupportedLanguages": ["csharp", "python", "rust"]
   }
 }
@@ -498,6 +581,12 @@ The MVP scorer is a keyword index, not an embedding model. It matches when the i
 **`language '<x>' is not supported. Expected one of: ...`.**
 The language set is configurable. By default it is `csharp`, `python`, `c`, `go`, `rust` — the error message lists whichever set the running server was configured with, so a deployment that narrowed it will say so. To add a language, extend the set via `VIBEGUARD_SUPPORTED_LANGUAGES` or `VibeGuard:SupportedLanguages` in `appsettings.json`, ship the matching language files in the corpus, and restart the server. See [Configuration reference — Supported languages](#supported-languages).
 
+**HTTP transport: client gets 404 or connection refused.**
+The MCP endpoint is mapped to `/` (root path), not `/mcp`. Make sure your client URL is `http://host:port/` with a trailing slash. If the server isn't running, start it with `VIBEGUARD_TRANSPORT=http`. Check that the port matches (`VIBEGUARD_HTTP_PORT` or the default `3001`).
+
+**HTTP transport: 406 Not Acceptable.**
+Streamable HTTP requires the `Accept: application/json, text/event-stream` header. MCP-aware clients send this automatically. If you're testing with `curl`, include `-H "Accept: application/json, text/event-stream"`.
+
 **Build errors about `net10.0` not being a valid target framework.**
 You need the .NET 10 SDK. `dotnet --list-sdks` should include a 10.x entry.
 
@@ -510,8 +599,6 @@ The corpus has grown from 3 to 37 archetypes across 10 categories. The next step
 - **Smarter prep scoring** — optional embedding-based retrieval as a sibling of the keyword scorer, gated behind a config flag so the deterministic path remains the default.
 - **Framework awareness** — the `framework` parameter on `prep` is already accepted on the wire; activating it means adding per-framework sub-files or frontmatter.
 - **Content review tooling** — a lightweight linter for PRs that runs the same validator the server runs at startup, so contributors see errors before pushing.
-- **Streamable HTTP transport** — for team or CI deployments that need a shared VibeGuard instance. Stdio remains the default for local use; HTTP would be an alternative transport over the same tool implementations.
-
 Tracked in GitHub issues. If you want to help with any of these, open an issue first so we can align on scope.
 
 ## Contributing
