@@ -3,7 +3,7 @@ schema_version: 1
 archetype: auth/jwt-handling
 title: JWT Handling
 summary: Creating, validating, and revoking JSON Web Tokens securely across any backend or API gateway.
-applies_to: [csharp, python, go, javascript, typescript, java, kotlin, ruby, php]
+applies_to: [all]
 status: stable
 author: ehabhussein
 reviewed_by: [ehabhussein]

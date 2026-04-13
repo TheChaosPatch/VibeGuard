@@ -38,15 +38,16 @@ public sealed class PasswordResetService(AppDbContext db, IPasswordHasher hasher
         var rawToken = RandomNumberGenerator.GetBytes(TokenBytes);
         var tokenHash = Convert.ToHexString(SHA256.HashData(rawToken));
 
+        await db.PasswordResetTokens
+            .Where(t => t.UserId == user.Id && !t.Consumed && t.ExpiresAt > DateTime.UtcNow)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.Consumed, true));
+
         await db.PasswordResetTokens.AddAsync(new PasswordResetToken
         {
             UserId    = user.Id,
             TokenHash = tokenHash,
             ExpiresAt = DateTime.UtcNow.Add(Expiry),
         });
-        await db.PasswordResetTokens
-            .Where(t => t.UserId == user.Id && !t.Consumed && t.ExpiresAt > DateTime.UtcNow)
-            .ExecuteUpdateAsync(s => s.SetProperty(t => t.Consumed, true));
 
         await db.SaveChangesAsync();
         var link = $"https://app.example.com/reset?token={Convert.ToHexString(rawToken)}";
