@@ -108,4 +108,48 @@ public class HybridSearchIntegrationTests
         ids.Should().Contain("auth/password-hashing");
         ids.Should().Contain("auth/session-tokens");
     }
+
+    [Fact]
+    public async Task SemanticSearch_GreenfieldQuery_SurfacesEngineeringArchetypes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var root = FindArchetypesRoot();
+        var repo = new FileSystemArchetypeRepository(root, false, SupportedLanguageSet.Default());
+        var archetypes = repo.LoadAll();
+
+        using var generator = OnnxEmbeddingGenerator.Create();
+        var keywordIndex = KeywordArchetypeIndex.Build(archetypes);
+        var embeddingIndex = await EmbeddingArchetypeIndex.BuildAsync(archetypes, generator, ct);
+        var hybrid = new HybridSearchService(keywordIndex, embeddingIndex, generator);
+
+        var results = await hybrid.SearchAsync(
+            "I am starting a brand new greenfield Go service from scratch and want to " +
+            "structure it properly with modules, a walking skeleton, and not over-engineer",
+            "go", maxResults: 15, ct);
+
+        var ids = results.Select(r => r.ArchetypeId).ToList();
+        ids.Should().Contain(id => id.StartsWith("engineering/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SemanticSearch_RefactorQuery_SurfacesEngineeringRefactoring()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var root = FindArchetypesRoot();
+        var repo = new FileSystemArchetypeRepository(root, false, SupportedLanguageSet.Default());
+        var archetypes = repo.LoadAll();
+
+        using var generator = OnnxEmbeddingGenerator.Create();
+        var keywordIndex = KeywordArchetypeIndex.Build(archetypes);
+        var embeddingIndex = await EmbeddingArchetypeIndex.BuildAsync(archetypes, generator, ct);
+        var hybrid = new HybridSearchService(keywordIndex, embeddingIndex, generator);
+
+        var results = await hybrid.SearchAsync(
+            "I want to refactor a large tangled module and split its responsibilities cleanly",
+            "csharp", maxResults: 15, ct);
+
+        var ids = results.Select(r => r.ArchetypeId).ToList();
+        ids.Should().Contain("engineering/refactoring-discipline");
+        ids.Should().Contain("engineering/module-decomposition");
+    }
 }
